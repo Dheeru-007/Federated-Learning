@@ -1,0 +1,13 @@
+C:\Users\adima\Downloads\federated-learning-java\federated-learning-java\src\main\java\com\fl\client\FLClient.java
+C:\Users\adima\Downloads\federated-learning-java\federated-learning-java\src\main\java\com\fl\crypto\SecureCommunication.java
+C:\Users\adima\Downloads\federated-learning-java\federated-learning-java\src\main\java\com\fl\data\HealthcareDataSimulator.java
+C:\Users\adima\Downloads\federated-learning-java\federated-learning-java\src\main\java\com\fl\Main.java
+C:\Users\adima\Downloads\federated-learning-java\federated-learning-java\src\main\java\com\fl\model\LogisticRegressionModel.java
+C:\Users\adima\Downloads\federated-learning-java\federated-learning-java\src\main\java\com\fl\model\ModelWeights.java
+C:\Users\adima\Downloads\federated-learning-java\federated-learning-java\src\main\java\com\fl\network\Message.java
+C:\Users\adima\Downloads\federated-learning-java\federated-learning-java\src\main\java\com\fl\network\ModelSerializer.java
+C:\Users\adima\Downloads\federated-learning-java\federated-learning-java\src\main\java\com\fl\privacy\DifferentialPrivacy.java
+C:\Users\adima\Downloads\federated-learning-java\federated-learning-java\src\main\java\com\fl\runner\ClientRunner.java
+C:\Users\adima\Downloads\federated-learning-java\federated-learning-java\src\main\java\com\fl\runner\ServerRunner.java
+C:\Users\adima\Downloads\federated-learning-java\federated-learning-java\src\main\java\com\fl\server\FedAvgAggregator.java
+C:\Users\adima\Downloads\federated-learning-java\federated-learning-java\src\main\java\com\fl\server\FLServer.java
