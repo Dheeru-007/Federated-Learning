@@ -1,0 +1,17 @@
+# Maven
+target/
+*.class
+
+# Secrets - never commit
+backend/src/main/resources/application.properties
+*.env
+.env
+
+# Frontend
+frontend/node_modules/
+frontend/build/
+
+# IDE
+.idea/
+*.iml
+.vscode/
