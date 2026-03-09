@@ -124,15 +124,20 @@ public class FlTrainingCoordinator {
                 double epsConsumedThisRound = 0.0;
 
                 for (int hospitalId = 0; hospitalId < numHospitals; hospitalId++) {
+                    System.out.println("[FL] Round " + round + " - Training Hospital " + hospitalId + "...");
                     HospitalDataset hospital = trainingDatasets[hospitalId];
                     String hospitalName = hospital.getName();
-
                     double[][][] splits = hospital.getTrainTestFeatures();
                     int[][] labels = hospital.getTrainTestLabels();
                     double[][] trainX = splits[0];
                     int[] trainY = labels[0];
                     double[][] testX = splits[1];
                     int[] testY = labels[1];
+
+                    int maxSamples = Math.min(trainX.length, 500);
+                    trainX = Arrays.copyOfRange(trainX, 0, maxSamples);
+                    trainY = Arrays.copyOfRange(trainY, 0, maxSamples);
+
 
                     DifferentialPrivacy dp = dpByHospital.get(hospitalId);
                     if (!dp.hasBudgetRemaining(config.getPrivacyBudget())) {
@@ -155,7 +160,7 @@ public class FlTrainingCoordinator {
                     ModelWeights rawUpdate = localModel.train(
                             trainX,
                             trainY,
-                            config.getLocalEpochs(),
+                          1,
                             hospitalName,
                             round
                     );
