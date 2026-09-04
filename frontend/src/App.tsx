@@ -5,6 +5,7 @@ import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import NewSessionPage from './pages/NewSessionPage';
 import SessionDetailPage from './pages/SessionDetailPage';
+import UploadDatasetsPage from './pages/UploadDatasetsPage';
 
 const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({ children }) => {
   const { user } = useAuth();
@@ -24,6 +25,7 @@ const AppRoutes: React.FC = () => (
     <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
     <Route path="/sessions/new" element={<ProtectedRoute><NewSessionPage /></ProtectedRoute>} />
     <Route path="/sessions/:id" element={<ProtectedRoute><SessionDetailPage /></ProtectedRoute>} />
+    <Route path="/sessions/:id/upload" element={<ProtectedRoute><UploadDatasetsPage /></ProtectedRoute>} />
   </Routes>
 );
 

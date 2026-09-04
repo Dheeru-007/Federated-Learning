@@ -6,6 +6,8 @@ import {
   LogOut,
   Plus,
   Shield,
+  Upload,
+  AlertTriangle,
   User as UserIcon,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -19,12 +21,14 @@ const NewSessionPage: React.FC = () => {
 
   const [form, setForm] = useState<NewSessionConfig>({
     sessionName: '',
-    numHospitals: 5,
-    numRounds: 20,
-    privacyBudget: 0.5,
+    numHospitals: 2,
+    numRounds: 5,
+    privacyBudget: 1.0,
     clipNorm: 1.0,
     noiseSigma: 0.05,
-    localEpochs: 7,
+    localEpochs: 1,
+    dataSource: 'CSV',
+    maliciousClientEnabled: false,
   });
 
   const [loading, setLoading] = useState(false);
@@ -38,13 +42,13 @@ const NewSessionPage: React.FC = () => {
     return { text: 'Low Privacy', color: 'text-rose-400' };
   };
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const { name, value, type } = e.target;
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value, type, checked } = e.target;
     setForm((prev) => ({
       ...prev,
-      [name]: type === 'number' || type === 'range'
+      [name]: type === 'checkbox'
+        ? checked
+        : type === 'number' || type === 'range'
         ? parseFloat(value)
         : value,
     }));
@@ -56,7 +60,11 @@ const NewSessionPage: React.FC = () => {
     setLoading(true);
     try {
       const session = await createSession(form);
-      navigate(`/sessions/${session.id}`);
+      if (form.dataSource === 'CSV') {
+        navigate(`/sessions/${session.id}/upload`);
+      } else {
+        navigate(`/sessions/${session.id}`);
+      }
     } catch {
       setError('Failed to create session. Is the backend running?');
     } finally {
@@ -80,9 +88,7 @@ const NewSessionPage: React.FC = () => {
             <Shield className="h-5 w-5 text-emerald-400" />
           </div>
           <div>
-            <div className="text-lg font-semibold tracking-tight">
-              FedLearn
-            </div>
+            <div className="text-lg font-semibold tracking-tight">FedLearn</div>
             <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
               Federated ML Platform
             </div>
@@ -143,11 +149,11 @@ const NewSessionPage: React.FC = () => {
             New Training Session
           </h1>
           <p className="text-sm text-slate-400 mb-8">
-            Configure and launch a federated learning experiment
-            across hospital nodes.
+            Configure and launch a federated learning experiment across hospital nodes.
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-6">
+
             {/* Session Name */}
             <div className="rounded-xl border border-slate-800 bg-slate-900/60 px-6 py-5 space-y-4">
               <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-400">
@@ -166,6 +172,45 @@ const NewSessionPage: React.FC = () => {
                   placeholder="e.g. Hospital Network — Q1 2025"
                   className="block w-full rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-50 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 placeholder:text-slate-500"
                 />
+              </div>
+            </div>
+
+            {/* Data Source */}
+            <div className="rounded-xl border border-slate-800 bg-slate-900/60 px-6 py-5 space-y-4">
+              <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-400">
+                Data Source
+              </h2>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setForm((p) => ({ ...p, dataSource: 'CSV' }))}
+                  className={`flex flex-col items-center gap-2 rounded-lg border px-4 py-4 text-sm font-medium transition-all ${
+                    form.dataSource === 'CSV'
+                      ? 'border-emerald-500 bg-emerald-500/10 text-emerald-300'
+                      : 'border-slate-700 bg-slate-950/60 text-slate-400 hover:border-slate-600'
+                  }`}
+                >
+                  <Upload className="h-5 w-5" />
+                  <span>Upload CSV</span>
+                  <span className="text-[11px] text-slate-500 text-center">
+                    Each hospital uploads their own dataset
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setForm((p) => ({ ...p, dataSource: 'SIMULATED' }))}
+                  className={`flex flex-col items-center gap-2 rounded-lg border px-4 py-4 text-sm font-medium transition-all ${
+                    form.dataSource === 'SIMULATED'
+                      ? 'border-emerald-500 bg-emerald-500/10 text-emerald-300'
+                      : 'border-slate-700 bg-slate-950/60 text-slate-400 hover:border-slate-600'
+                  }`}
+                >
+                  <Shield className="h-5 w-5" />
+                  <span>Simulated Data</span>
+                  <span className="text-[11px] text-slate-500 text-center">
+                    Use synthetic healthcare dataset
+                  </span>
+                </button>
               </div>
             </div>
 
@@ -198,7 +243,7 @@ const NewSessionPage: React.FC = () => {
                     name="numRounds"
                     value={form.numRounds}
                     onChange={handleChange}
-                    min={5}
+                    min={1}
                     max={50}
                     className="block w-full rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-50 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"
                   />
@@ -284,6 +329,33 @@ const NewSessionPage: React.FC = () => {
               </div>
             </div>
 
+            {/* Security Config */}
+            <div className="rounded-xl border border-slate-800 bg-slate-900/60 px-6 py-5 space-y-4">
+              <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-400">
+                Security Configuration
+              </h2>
+              <div className="flex items-start gap-4 rounded-lg border border-slate-700 bg-slate-950/40 px-4 py-4">
+                <input
+                  type="checkbox"
+                  name="maliciousClientEnabled"
+                  id="maliciousClientEnabled"
+                  checked={form.maliciousClientEnabled}
+                  onChange={handleChange}
+                  className="mt-0.5 h-4 w-4 accent-rose-500"
+                />
+                <label htmlFor="maliciousClientEnabled" className="cursor-pointer">
+                  <div className="flex items-center gap-2 text-sm font-medium text-slate-200">
+                    <AlertTriangle className="h-4 w-4 text-rose-400" />
+                    Enable Malicious Client Simulation
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Injects a Byzantine client sending corrupted weights. The security
+                    layer will detect and reject it via SHA-256 hash verification.
+                  </p>
+                </label>
+              </div>
+            </div>
+
             {error && (
               <div className="rounded-md border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
                 {error}
@@ -306,12 +378,12 @@ const NewSessionPage: React.FC = () => {
                 {loading ? (
                   <>
                     <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-emerald-950 border-t-transparent" />
-                    Starting...
+                    Creating...
                   </>
                 ) : (
                   <>
                     <Plus className="h-4 w-4" />
-                    Start Training
+                    {form.dataSource === 'CSV' ? 'Next: Upload Datasets' : 'Start Training'}
                   </>
                 )}
               </button>

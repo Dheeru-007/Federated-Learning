@@ -6,6 +6,10 @@ export interface TrainingSession {
   numHospitals: number;
   numRounds: number;
   privacyBudget: number;
+  dataSource: 'CSV' | 'SIMULATED';
+  maliciousClientEnabled: boolean;
+  featureCount: number | null;
+  hospitalsUploaded: number;
   startedAt: string | null;
   finishedAt: string | null;
   finalAccuracy: number | null;
@@ -56,4 +60,3 @@ export interface User {
   role: UserRole;
   token: string;
 }
-

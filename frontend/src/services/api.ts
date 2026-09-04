@@ -16,6 +16,33 @@ export interface NewSessionConfig {
   clipNorm: number;
   noiseSigma: number;
   localEpochs: number;
+  dataSource: 'CSV' | 'SIMULATED';
+  maliciousClientEnabled: boolean;
+}
+
+export interface UploadStatus {
+  sessionId: number;
+  hospitalsRequired: number;
+  hospitalsUploaded: number;
+  allUploaded: boolean;
+  featureCount: number | null;
+  datasets: {
+    hospitalId: number;
+    hospitalName: string;
+    rows: number;
+    features: number;
+    uploadedAt: string;
+  }[];
+}
+
+export interface UploadResponse {
+  message: string;
+  hospitalId: number;
+  rows: number;
+  features: number;
+  hospitalsUploaded: number;
+  hospitalsRequired: number;
+  allUploaded: boolean;
 }
 
 type LoginResponse = User;
@@ -56,18 +83,20 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-
 export async function login(username: string, password: string): Promise<LoginResponse> {
   const { data } = await api.post<LoginResponse>('/api/auth/login', { username, password });
   return data;
 }
 
-export async function register(username: string, password: string, role: string): Promise<{ message: string; username: string }> {
-  const { data } = await api.post<{ message: string; username: string }>('/api/auth/register', {
-    username,
-    password,
-    role,
-  });
+export async function register(
+  username: string,
+  password: string,
+  role: string
+): Promise<{ message: string; username: string }> {
+  const { data } = await api.post<{ message: string; username: string }>(
+    '/api/auth/register',
+    { username, password, role }
+  );
   return data;
 }
 
@@ -116,3 +145,27 @@ export async function getClients(sessionId: number): Promise<ClientMetric[]> {
   }));
 }
 
+export async function getUploadStatus(sessionId: number): Promise<UploadStatus> {
+  const { data } = await api.get<UploadStatus>(`/api/datasets/status/${sessionId}`);
+  return data;
+}
+
+export async function uploadDataset(
+  sessionId: number,
+  hospitalId: number,
+  file: File
+): Promise<UploadResponse> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const { data } = await api.post<UploadResponse>(
+    `/api/datasets/upload/${sessionId}/${hospitalId}`,
+    formData,
+    { headers: { 'Content-Type': 'multipart/form-data' } }
+  );
+  return data;
+}
+
+export async function startTraining(sessionId: number): Promise<TrainingSession> {
+  const { data } = await api.post<TrainingSession>(`/api/sessions/${sessionId}/start`);
+  return data;
+}

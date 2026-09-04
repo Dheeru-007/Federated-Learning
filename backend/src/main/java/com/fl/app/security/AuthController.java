@@ -53,7 +53,7 @@ public class AuthController {
 
         User user = User.builder()
                 .username(request.getUsername())
-                .password(passwordEncoder.encode(request.getPassword()))
+                .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .role(role)
                 .build();
 
@@ -75,10 +75,12 @@ public class AuthController {
         private String role; // ADMIN or VIEWER
     }
 
-    public record LoginResponse(String token, String username, String role) {}
+    public record LoginResponse(String token, String username, String role) {
+    }
 
-    public record RegisterResponse(String message, String username) {}
+    public record RegisterResponse(String message, String username) {
+    }
 
-    public record MessageResponse(String message) {}
+    public record MessageResponse(String message) {
+    }
 }
-

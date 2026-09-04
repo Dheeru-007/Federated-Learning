@@ -54,9 +54,32 @@ const SessionDetailPage: React.FC = () => {
     void load();
   }, [sessionId]);
 
+  // Polling fallback — fetches rounds every 2s when RUNNING
   useEffect(() => {
     if (!session) return;
-    if (session.status !== 'RUNNING') return;
+    if (session.status === 'COMPLETED' || session.status === 'FAILED') return;
+
+    const interval = setInterval(async () => {
+      try {
+        const [s, r] = await Promise.all([
+          getSession(sessionId),
+          getRounds(sessionId),
+        ]);
+        setSession(s);
+        setRounds(r);
+        if (s.status === 'COMPLETED' || s.status === 'FAILED') {
+          clearInterval(interval);
+        }
+      } catch { }
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [session?.status, sessionId]);
+
+  // WebSocket for real-time updates
+  useEffect(() => {
+    if (!session) return;
+    if (session.status === 'COMPLETED' || session.status === 'FAILED') return;
 
     const disconnect = connectToSession(
       sessionId,
@@ -92,7 +115,7 @@ const SessionDetailPage: React.FC = () => {
 
     disconnectRef.current = disconnect;
     return () => disconnect();
- }, [session, sessionId]);
+  }, [session?.status, sessionId]);
 
   const handleLogout = () => {
     logout();
@@ -259,8 +282,8 @@ const SessionDetailPage: React.FC = () => {
                   {session.finalAccuracy != null
                     ? `${(session.finalAccuracy * 100).toFixed(1)}%`
                     : rounds.length > 0
-                    ? `${(rounds[rounds.length - 1].globalAccuracy * 100).toFixed(1)}%`
-                    : '—'}
+                      ? `${(rounds[rounds.length - 1].globalAccuracy * 100).toFixed(1)}%`
+                      : '—'}
                 </p>
               </div>
             </div>

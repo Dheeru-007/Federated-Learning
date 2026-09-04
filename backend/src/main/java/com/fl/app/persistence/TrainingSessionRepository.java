@@ -9,8 +9,9 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface TrainingSessionRepository extends JpaRepository<TrainingSession, Long> {
 
+    List<TrainingSession> findAllByOrderByIdDesc();
+
     List<TrainingSession> findAllByOrderByStartedAtDesc();
 
     List<TrainingSession> findByStatus(Status status);
 }
-
