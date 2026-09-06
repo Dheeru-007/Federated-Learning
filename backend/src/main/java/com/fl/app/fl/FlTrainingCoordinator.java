@@ -49,6 +49,7 @@ public class FlTrainingCoordinator {
     private final UploadedDatasetRepository datasetRepository;
     private final TrainingEventPublisher eventPublisher;
     private final ApplicationContext applicationContext;
+    private final SecurityLayer securityLayer;
 
     public FlTrainingCoordinator(
             TrainingSessionRepository sessionRepository,
@@ -56,7 +57,8 @@ public class FlTrainingCoordinator {
             ClientMetricRepository clientMetricRepository,
             UploadedDatasetRepository datasetRepository,
             TrainingEventPublisher eventPublisher,
-            ApplicationContext applicationContext) {
+            ApplicationContext applicationContext,
+            SecurityLayer securityLayer) {
 
         this.sessionRepository = sessionRepository;
         this.roundMetricRepository = roundMetricRepository;
@@ -64,6 +66,7 @@ public class FlTrainingCoordinator {
         this.datasetRepository = datasetRepository;
         this.eventPublisher = eventPublisher;
         this.applicationContext = applicationContext;
+        this.securityLayer = securityLayer;
     }
 
     public TrainingSession startTraining(TrainingConfig config, String createdBy) {
@@ -74,7 +77,8 @@ public class FlTrainingCoordinator {
         TrainingSession session = TrainingSession.builder()
                 .name(sessionName)
                 .createdBy(createdBy)
-                .status(Status.PENDING)
+                .status(Status.RUNNING)             // pre-set RUNNING synchronously — avoids stale PENDING response
+                .startedAt(LocalDateTime.now())
                 .numHospitals(config.getNumHospitals())
                 .numRounds(config.getNumRounds())
                 .privacyBudget(config.getPrivacyBudget())
@@ -129,10 +133,10 @@ public class FlTrainingCoordinator {
             EvaluationDataset normValDataset = new EvaluationDataset(
                     normValFeatures, evaluationDataset.labels());
 
-            session.setStatus(Status.RUNNING);
-            session.setStartedAt(LocalDateTime.now());
+            // featureCount is resolved here in the async thread after data is loaded
             session.setFeatureCount(featureCount);
             sessionRepository.save(session);
+            // Note: status is already RUNNING (set synchronously in the caller before dispatch)
 
             log.info("Starting training for session {} with {} hospitals and {} rounds",
                     sessionId, hospitalData.length, session.getNumRounds());
@@ -154,7 +158,7 @@ public class FlTrainingCoordinator {
                 clientMetricRepository.saveAll(roundArtifacts.clientMetrics());
 
                 Aggregator.AggregationResult result =
-                        Aggregator.aggregate(roundArtifacts.securedUpdates(), round);
+                        Aggregator.aggregate(roundArtifacts.securedUpdates(), round, securityLayer);
 
                 globalWeights = result.globalWeights();
 
@@ -169,6 +173,8 @@ public class FlTrainingCoordinator {
 
                 long communication = roundArtifacts.totalCommunicationBytes();
 
+                double perRoundEpsilon = config.getPrivacyBudget() / config.getNumRounds();
+
                 RoundMetric metric = RoundMetric.builder()
                         .session(session)
                         .roundNumber(round)
@@ -176,7 +182,7 @@ public class FlTrainingCoordinator {
                         .globalLoss(finalLoss)
                         .numClients(result.acceptedClients())
                         .bytesTransferred(communication)
-                        .epsilonConsumed(config.getPrivacyBudget())
+                        .epsilonConsumed(perRoundEpsilon)  // per-round ε, not total budget
                         .build();
 
                 roundMetricRepository.save(metric);
@@ -188,7 +194,7 @@ public class FlTrainingCoordinator {
                                 .totalRounds(session.getNumRounds())
                                 .globalAccuracy(finalAcc)
                                 .globalLoss(finalLoss)
-                                .epsilonConsumed(config.getPrivacyBudget())
+                                .epsilonConsumed(perRoundEpsilon)  // per-round ε, not total budget
                                 .bytesTransferred(communication)
                                 .numClients(result.acceptedClients())
                                 .status("RUNNING")
@@ -383,11 +389,15 @@ public class FlTrainingCoordinator {
 
         double localAccuracy = trainer.evaluate(normalizedFeatures, cleaned.labels());
 
+        // Per-round epsilon: divide total budget evenly across rounds
+        // This ensures simple composition ε_total = numRounds × ε_per_round stays within budget
+        double perRoundEpsilon = config.getPrivacyBudget() / config.getNumRounds();
+
         PrivacyEngine roundPrivacyEngine = new PrivacyEngine();
         LocalTrainer.ModelWeights noisyWeights =
-                roundPrivacyEngine.applyNoise(rawWeights, config.getPrivacyBudget());
+                roundPrivacyEngine.applyNoise(rawWeights, perRoundEpsilon);
 
-        SecurityLayer.SecuredUpdate secured = SecurityLayer.secure(noisyWeights);
+        SecurityLayer.SecuredUpdate secured = securityLayer.secure(noisyWeights);
 
         ClientMetric metric = ClientMetric.builder()
                 .session(session)
@@ -395,8 +405,7 @@ public class FlTrainingCoordinator {
                 .clientId(clientId)
                 .hospitalName(hospital.name())
                 .localAccuracy(localAccuracy)
-                .epsilonConsumed(
-                        roundPrivacyEngine.computeEpsilonConsumed(config.getPrivacyBudget()))
+                .epsilonConsumed(roundPrivacyEngine.computeEpsilonConsumed())  // actual ε, derived from sigma
                 .bytesSent((long) secured.encryptedWeights().length)
                 .build();
 

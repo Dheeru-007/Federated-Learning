@@ -1,18 +1,8 @@
 package com.fl.app.api.rest;
 
-import com.fl.app.domain.ClientMetric;
-import com.fl.app.domain.RoundMetric;
-import com.fl.app.domain.TrainingSession;
-import com.fl.app.domain.TrainingSession.DataSource;
-import com.fl.app.domain.TrainingSession.Status;
-import com.fl.app.fl.FlTrainingCoordinator;
-import com.fl.app.fl.TrainingConfig;
-import com.fl.app.persistence.ClientMetricRepository;
-import com.fl.app.persistence.RoundMetricRepository;
-import com.fl.app.persistence.TrainingSessionRepository;
-import com.fl.app.persistence.UploadedDatasetRepository;
 import java.util.List;
 import java.util.Map;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -23,28 +13,25 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.fl.app.domain.ClientMetric;
+import com.fl.app.domain.RoundMetric;
+import com.fl.app.domain.TrainingSession;
+import com.fl.app.domain.TrainingSession.DataSource;
+import com.fl.app.fl.TrainingConfig;
+import com.fl.app.service.SessionService;
+
+/**
+ * Thin HTTP adapter for session management.
+ * All business logic lives in {@link SessionService}.
+ */
 @RestController
 @RequestMapping("/api/sessions")
 public class SessionController {
 
-    private final FlTrainingCoordinator coordinator;
-    private final RoundMetricRepository roundMetricRepository;
-    private final ClientMetricRepository clientMetricRepository;
-    private final TrainingSessionRepository trainingSessionRepository;
-    private final UploadedDatasetRepository datasetRepository;
+    private final SessionService sessionService;
 
-    public SessionController(
-            FlTrainingCoordinator coordinator,
-            RoundMetricRepository roundMetricRepository,
-            ClientMetricRepository clientMetricRepository,
-            TrainingSessionRepository trainingSessionRepository,
-            UploadedDatasetRepository datasetRepository
-    ) {
-        this.coordinator = coordinator;
-        this.roundMetricRepository = roundMetricRepository;
-        this.clientMetricRepository = clientMetricRepository;
-        this.trainingSessionRepository = trainingSessionRepository;
-        this.datasetRepository = datasetRepository;
+    public SessionController(SessionService sessionService) {
+        this.sessionService = sessionService;
     }
 
     @PostMapping
@@ -66,74 +53,7 @@ public class SessionController {
                     .maliciousClientEnabled(request.maliciousClientEnabled())
                     .build();
 
-            // For CSV mode, just create session without starting training
-            if (config.getDataSource() == DataSource.CSV) {
-                TrainingSession session = TrainingSession.builder()
-                        .name(config.getSessionName() == null || config.getSessionName().isBlank()
-                                ? "FL Session"
-                                : config.getSessionName())
-                        .createdBy(username)
-                        .status(Status.PENDING)
-                        .numHospitals(config.getNumHospitals())
-                        .numRounds(config.getNumRounds())
-                        .privacyBudget(config.getPrivacyBudget())
-                        .dataSource(DataSource.CSV)
-                        .maliciousClientEnabled(config.isMaliciousClientEnabled())
-                        .build();
-                return ResponseEntity.ok(trainingSessionRepository.save(session));
-            }
-
-            // For SIMULATED mode, start training immediately
-            return ResponseEntity.ok(coordinator.startTraining(config, username));
-
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        }
-    }
-
-    @PostMapping("/{id}/start")
-    public ResponseEntity<?> startTraining(@PathVariable Long id) {
-        try {
-            TrainingSession session = trainingSessionRepository.findById(id)
-                    .orElseThrow(() -> new IllegalArgumentException("Session not found: " + id));
-
-            if (session.getStatus() != Status.PENDING) {
-                return ResponseEntity.badRequest()
-                        .body(Map.of("error", "Session is not in PENDING state"));
-            }
-
-            if (session.getDataSource() == DataSource.CSV) {
-                int uploaded = datasetRepository.countBySessionId(id);
-                if (uploaded < session.getNumHospitals()) {
-                    return ResponseEntity.badRequest().body(Map.of(
-                        "error", "Not all hospitals have uploaded datasets. "
-                            + uploaded + "/" + session.getNumHospitals() + " uploaded."
-                    ));
-                }
-
-                // Ensure feature count was set during CSV upload
-                if (session.getFeatureCount() == null || session.getFeatureCount() <= 0) {
-                    return ResponseEntity.badRequest().body(Map.of(
-                        "error", "Feature count not set. Re-upload datasets."
-                    ));
-                }
-            }
-
-            TrainingConfig config = TrainingConfig.builder()
-                    .sessionName(session.getName())
-                    .numHospitals(session.getNumHospitals())
-                    .numRounds(session.getNumRounds())
-                    .privacyBudget(session.getPrivacyBudget())
-                    .dataSource(session.getDataSource())
-                    .maliciousClientEnabled(session.isMaliciousClientEnabled())
-                    .build();
-
-            // Delegate to coordinator — it handles status transition to RUNNING
-            coordinator.runTrainingAsync(id, config);
-
-            // Re-read session after async dispatch to return current state
-            TrainingSession updated = trainingSessionRepository.findById(id).orElse(session);
-            return ResponseEntity.ok(updated);
+            return ResponseEntity.ok(sessionService.createSession(config, username));
 
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
@@ -142,40 +62,60 @@ public class SessionController {
         }
     }
 
+    @PostMapping("/{id}/start")
+    public ResponseEntity<?> startTraining(@PathVariable Long id) {
+        try {
+            return ResponseEntity.ok(sessionService.startSession(id));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+        }
+    }
+
     @GetMapping
     public List<TrainingSession> listSessions() {
-        return trainingSessionRepository.findAllByOrderByIdDesc();
+        return sessionService.listSessions();
     }
 
     @GetMapping("/{id}")
-    public TrainingSession getSession(@PathVariable Long id) {
-        return coordinator.getSessionStatus(id);
+    public ResponseEntity<?> getSession(@PathVariable Long id) {
+        try {
+            return ResponseEntity.ok(sessionService.getSession(id));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
     }
 
     @GetMapping("/{id}/rounds")
     public List<RoundMetric> getRounds(@PathVariable Long id) {
-        return roundMetricRepository.findBySessionIdOrderByRoundNumberAsc(id);
+        return sessionService.getRounds(id);
     }
 
     @GetMapping("/{id}/clients")
     public List<ClientMetric> getClients(@PathVariable Long id) {
-        return clientMetricRepository.findBySessionId(id);
+        return sessionService.getClients(id);
     }
+
+    // ─── Internal ─────────────────────────────────────────────────────────────
 
     private static String getCurrentUsername() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || auth.getName() == null) return "unknown";
-        return auth.getName();
+        return (auth == null || auth.getName() == null) ? "unknown" : auth.getName();
     }
+
+    // ─── Request DTO ──────────────────────────────────────────────────────────
 
     public record CreateSessionRequest(
             String sessionName,
-            int numHospitals,
-            int numRounds,
+            int    numHospitals,
+            int    numRounds,
             double privacyBudget,
             double clipNorm,
             double noiseSigma,
-            int localEpochs,
+            int    localEpochs,
             String dataSource,
             boolean maliciousClientEnabled
     ) {}

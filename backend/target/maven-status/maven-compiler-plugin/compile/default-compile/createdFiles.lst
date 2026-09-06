@@ -14,6 +14,7 @@ com\fl\app\domain\User.class
 com\fl\app\domain\RoundMetric.class
 com\fl\app\fl\pipeline\LocalTrainer.class
 com\fl\app\fl\pipeline\Evaluator.class
+com\fl\app\service\DatasetService.class
 com\fl\app\domain\User$UserBuilder.class
 com\fl\app\fl\FlTrainingCoordinator.class
 com\fl\app\fl\TrainingConfig.class
@@ -54,9 +55,9 @@ com\fl\app\domain\TrainingSession$TrainingSessionBuilder.class
 com\fl\app\fl\pipeline\DataCleaner.class
 com\fl\app\api\ws\WebSocketConfig.class
 com\fl\app\api\rest\SessionController$CreateSessionRequest.class
-com\fl\app\fl\pipeline\SecurityLayer$WeightsWithBias.class
 com\fl\app\api\ws\RoundUpdateMessage$RoundUpdateMessageBuilder.class
 com\fl\app\domain\UploadedDataset$UploadedDatasetBuilder.class
+com\fl\app\service\SessionService.class
 com\fl\app\fl\pipeline\DataNormalizer$NormalizedDataset.class
 com\fl\app\fl\pipeline\DataNormalizer.class
 com\fl\app\fl\FlTrainingCoordinator$RoundArtifacts.class

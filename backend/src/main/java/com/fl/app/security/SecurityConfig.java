@@ -40,9 +40,11 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/register").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/health").permitAll()
                         .requestMatchers("/ws/**").permitAll()
+                        .requestMatchers("/h2-console/**").permitAll()  // H2 dev console
                         .requestMatchers("/api/datasets/**").authenticated()
                         .anyRequest().authenticated()
                 )
+                .headers(headers -> headers.frameOptions(frame -> frame.disable())) // required for H2 console (uses iframes)
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }

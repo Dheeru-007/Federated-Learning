@@ -1,0 +1,74 @@
+# Federated ML - Privacy-Preserving Healthcare Analytics
+
+## 1. What This Project Does
+This project implements a privacy-preserving Federated Learning (FL) system designed for healthcare analytics. In a traditional machine learning setup, all patient data would be sent to a central server for training, which poses significant privacy and security risks. 
+
+Instead, this system uses Federated Learning:
+- Multiple "Hospital" clients participate in the system.
+- Each hospital keeps its raw, sensitive patient data locally.
+- The hospitals train a machine learning model locally on their own data.
+- After local training, each hospital encrypts the model's updates (gradients/weights) and sends *only* these updates to a central FL Aggregation Server.
+- The Aggregation Server securely aggregates these updates (using an algorithm like Federated Averaging) to improve a "Global Model."
+- The updated Global Model is sent back to the hospitals for the next round of training.
+
+This guarantees that **raw patient data never leaves the hospital's local network**, satisfying strict privacy regulations while still benefiting from collaborative machine learning.
+
+## 2. How It Does It
+The project simulates a distributed architecture using a central Spring Boot server (Backend) and a React web interface (Frontend).
+
+- **Local Training**: Clients perform training on their local datasets.
+- **Differential Privacy (DP)**: Before sending updates, local clients add calibrated cryptographic noise to their models (using `PrivacyEngine`). This prevents the server from reverse-engineering the updates to find out about individual patient records.
+- **Security & Encryption**: Model updates are encrypted using AES-256-GCM and signed using RSA (via `SecurityLayer`) before being transmitted over the network (TCP sockets).
+- **Federated Aggregation**: The server waits for all participating hospitals to send their encrypted updates, decrypts them, aggregates them, and evaluates the new global model.
+- **Real-time Monitoring**: The backend pushes real-time metrics (like round progress, accuracy, loss) to the frontend via WebSockets, allowing administrators to monitor the training session live on the React Dashboard.
+
+## 3. Project Structure
+The project is divided into two main components:
+1. **backend/**: A Java Spring Boot application that acts as the FL Aggregation Server and REST API provider.
+2. **frontend/**: A React (TypeScript) web application that provides the user interface for administrators to manage sessions, datasets, and view training progress.
+
+## 4. APIs Used
+- **REST API**: Used for standard CRUD operations:
+  - User Authentication (Login/Register via JWT).
+  - Dataset Management (Uploading and assigning datasets to hospitals).
+  - Session Management (Creating and managing FL training sessions).
+- **WebSocket API**: Used for real-time, bi-directional communication between the Spring Boot backend and the React frontend. It streams live updates about the FL training rounds (e.g., current round, accuracy, loss metrics).
+- **TCP Sockets**: (As defined in the Java runner system) Used for direct communication between the Hospital clients and the FL Aggregation server during the actual model training phase.
+
+## 5. What is Inside Each File (In Simple Terms)
+
+### Backend (Java / Spring Boot)
+- **`FlApplication.java`**: The main starting point of the Spring Boot backend server.
+- **`api.rest.*` (Controllers)**:
+  - `DatasetController.java`: Handles requests to upload and manage local hospital datasets.
+  - `SessionController.java`: Handles requests to start, stop, and view federated learning training sessions.
+  - `HealthController.java`: A simple endpoint to check if the server is running.
+- **`api.ws.*` (WebSockets)**:
+  - `WebSocketConfig.java`: Sets up the WebSocket connections for real-time streaming.
+  - `TrainingEventPublisher.java`: Broadcasts live training updates (like accuracy changes) to the frontend.
+  - `RoundUpdateMessage.java`: The data structure for the message sent over WebSockets.
+- **`fl.pipeline.*` (Federated Learning Logic)**:
+  - `LocalTrainer.java`: Simulates the machine learning training happening at the hospital.
+  - `PrivacyEngine.java`: Adds Differential Privacy noise to the model updates to ensure patient anonymity.
+  - `SecurityLayer.java`: Encrypts the model updates before sending them over the network.
+  - `Aggregator.java`: The server-side logic that combines all the hospital updates into one global model.
+  - `Evaluator.java`: Tests the global model to see how accurate it has become.
+  - `DataIngestion.java`, `DataCleaner.java`, `DataNormalization.java`: Tools to prepare and clean the data before training.
+- **`fl.FlTrainingCoordinator.java`**: The main orchestrator that manages the step-by-step process of the training rounds.
+- **`domain.*`**: The database tables/models (e.g., User, TrainingSession, ClientMetric).
+- **`persistence.*`**: Repositories used to save and retrieve data from the database.
+- **`security.*`**: Handles logging in, creating JWT tokens, and ensuring only authorized users can access the system.
+
+### Frontend (React / TypeScript)
+- **`src/App.tsx` & `index.tsx`**: The main wrappers and entry points for the React web application.
+- **`src/pages/*`**:
+  - `DashboardPage.tsx`: The main home screen showing an overview of the system.
+  - `LoginPage.tsx`: The screen where administrators log in.
+  - `NewSessionPage.tsx`: A form to configure and launch a new federated learning training task.
+  - `SessionDetailPage.tsx`: A live view that uses WebSockets to show real-time charts and metrics of an ongoing training session.
+  - `UploadDatasetsPage.tsx`: The screen where users can upload data files for the hospitals.
+- **`src/services/*`**:
+  - `api.ts`: Helper functions to make standard HTTP REST requests to the backend.
+  - `websocket.ts`: Helper functions to connect to the backend's WebSocket for real-time updates.
+- **`src/context/AuthContext.tsx`**: Keeps track of whether the user is currently logged in across the entire website.
+- **`src/types/index.ts`**: Defines the shapes of the data (TypeScript interfaces) so the frontend knows what to expect from the backend.
