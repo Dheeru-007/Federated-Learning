@@ -10,8 +10,7 @@ import org.junit.jupiter.api.Test;
  */
 class PrivacyEngineTest {
 
-    private static final double DELTA       = 1e-5;
-    private static final double SENSITIVITY = 1.0;
+
 
     private PrivacyEngine engine;
 

@@ -2,7 +2,6 @@ package com.fl.app.service;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,6 +25,7 @@ import com.fl.app.persistence.UploadedDatasetRepository;
  * Encapsulates all business logic, keeping SessionController as a thin HTTP mapping layer.
  */
 @Service
+@SuppressWarnings("null")
 public class SessionService {
 
     private static final Logger log = LoggerFactory.getLogger(SessionService.class);

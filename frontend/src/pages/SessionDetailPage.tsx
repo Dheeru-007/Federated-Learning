@@ -10,7 +10,8 @@ import {
   User as UserIcon,
 } from 'lucide-react';
 import {
-  LineChart,
+  ComposedChart,
+  Area,
   Line,
   XAxis,
   YAxis,
@@ -19,11 +20,28 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
+import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { getSession, getRounds } from '../services/api';
 import { connectToSession } from '../services/websocket';
 import type { TrainingSession, RoundMetric, RoundUpdateMessage } from '../types';
 
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.15 },
+  },
+};
+
+const itemVariants = {
+  hidden: { y: 20, opacity: 0 },
+  visible: {
+    y: 0,
+    opacity: 1,
+    transition: { type: 'spring', stiffness: 100, damping: 15 },
+  },
+};
 const SessionDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const sessionId = Number(id);
@@ -222,18 +240,24 @@ const SessionDetailPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-50 flex">
       {sidebar}
-      <main className="flex-1 min-w-0">
-        <div className="mx-auto max-w-5xl px-4 py-8 space-y-6">
-          <button
+      <main className="flex-1 min-w-0 overflow-y-auto">
+        <motion.div 
+          className="mx-auto max-w-5xl px-4 py-8 space-y-6"
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+        >
+          <motion.button
+            variants={itemVariants}
             onClick={() => navigate('/dashboard')}
             className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-slate-200"
           >
             <ArrowLeft className="h-4 w-4" />
             Back to Dashboard
-          </button>
+          </motion.button>
 
           {/* Session Info Card */}
-          <div className="rounded-xl border border-slate-800 bg-slate-900/60 px-6 py-5">
+          <motion.div variants={itemVariants} className="rounded-xl border border-slate-800/80 bg-slate-900/60 backdrop-blur-xl px-6 py-5 shadow-xl shadow-slate-950/40">
             <div className="flex items-start justify-between gap-4 flex-wrap">
               <div>
                 <h1 className="text-2xl font-semibold tracking-tight">
@@ -287,10 +311,11 @@ const SessionDetailPage: React.FC = () => {
                 </p>
               </div>
             </div>
-          </div>
+            </div>
+          </motion.div>
 
           {/* Chart */}
-          <div className="rounded-xl border border-slate-800 bg-slate-900/60 px-6 py-5">
+          <motion.div variants={itemVariants} className="rounded-xl border border-slate-800/80 bg-slate-900/60 backdrop-blur-xl px-6 py-5 shadow-xl shadow-slate-950/40">
             <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-400 mb-4">
               Training Progress
             </h2>
@@ -300,7 +325,17 @@ const SessionDetailPage: React.FC = () => {
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={280}>
-                <LineChart data={chartData}>
+                <ComposedChart data={chartData}>
+                  <defs>
+                    <linearGradient id="colorAcc" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#34d399" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#34d399" stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="colorLoss" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#f87171" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#f87171" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
                   <XAxis
                     dataKey="round"
@@ -338,32 +373,38 @@ const SessionDetailPage: React.FC = () => {
                   <Legend
                     wrapperStyle={{ color: '#94a3b8', fontSize: 12 }}
                   />
-                  <Line
+                  <Area
                     yAxisId="acc"
                     type="monotone"
                     dataKey="accuracy"
                     stroke="#34d399"
-                    strokeWidth={2}
-                    dot={false}
+                    strokeWidth={3}
+                    fillOpacity={1}
+                    fill="url(#colorAcc)"
                     name="Accuracy (%)"
+                    isAnimationActive={true}
+                    animationDuration={1500}
                   />
-                  <Line
+                  <Area
                     yAxisId="loss"
                     type="monotone"
                     dataKey="loss"
                     stroke="#f87171"
-                    strokeWidth={2}
-                    dot={false}
+                    strokeWidth={3}
+                    fillOpacity={1}
+                    fill="url(#colorLoss)"
                     name="Loss"
+                    isAnimationActive={true}
+                    animationDuration={1500}
                   />
-                </LineChart>
+                </ComposedChart>
               </ResponsiveContainer>
             )}
-          </div>
+          </motion.div>
 
           {/* Rounds Table */}
-          <div className="rounded-xl border border-slate-800 bg-slate-900/60 overflow-hidden">
-            <div className="px-4 py-3 border-b border-slate-800">
+          <motion.div variants={itemVariants} className="rounded-xl border border-slate-800/80 bg-slate-900/50 backdrop-blur-xl shadow-xl shadow-slate-950/50 overflow-hidden">
+            <div className="px-4 py-4 border-b border-slate-800/80 bg-slate-900/80">
               <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-400">
                 Round Metrics
               </h2>
@@ -385,10 +426,19 @@ const SessionDetailPage: React.FC = () => {
                       <th className="px-4 py-3">Timestamp</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800/80">
+                  <motion.tbody 
+                    variants={containerVariants}
+                    initial="hidden"
+                    animate="visible"
+                    className="divide-y divide-slate-800/60"
+                  >
                     {rounds.map((r) => (
-                      <tr key={r.id} className="hover:bg-slate-900/70">
-                        <td className="px-4 py-3 font-medium">
+                      <motion.tr 
+                        variants={itemVariants}
+                        key={r.id} 
+                        className="hover:bg-slate-800/40 transition-colors duration-150 group"
+                      >
+                        <td className="px-4 py-4 font-medium">
                           {r.roundNumber}
                         </td>
                         <td className="px-4 py-3 text-emerald-400">
@@ -403,17 +453,17 @@ const SessionDetailPage: React.FC = () => {
                         <td className="px-4 py-3 text-slate-200">
                           {r.epsilonConsumed.toFixed(4)}
                         </td>
-                        <td className="px-4 py-3 text-slate-400">
+                        <td className="px-4 py-4 text-slate-400">
                           {new Date(r.timestamp).toLocaleTimeString()}
                         </td>
-                      </tr>
+                      </motion.tr>
                     ))}
-                  </tbody>
+                  </motion.tbody>
                 </table>
               </div>
             )}
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       </main>
     </div>
   );

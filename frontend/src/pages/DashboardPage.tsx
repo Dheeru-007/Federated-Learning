@@ -13,6 +13,30 @@ import {
 import { useAuth } from '../context/AuthContext';
 import type { TrainingSession } from '../types';
 import { getSessions } from '../services/api';
+import { motion } from 'framer-motion';
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1,
+    },
+  },
+};
+
+const itemVariants = {
+  hidden: { y: 20, opacity: 0 },
+  visible: {
+    y: 0,
+    opacity: 1,
+    transition: {
+      type: 'spring',
+      stiffness: 100,
+      damping: 15,
+    },
+  },
+};
 
 const DashboardPage: React.FC = () => {
   const { user, logout } = useAuth();
@@ -151,10 +175,15 @@ const DashboardPage: React.FC = () => {
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 min-w-0 md:ml-0">
-        <div className="mx-auto max-w-6xl px-4 py-6 md:py-8">
+      <main className="flex-1 min-w-0 md:ml-0 overflow-y-auto">
+        <motion.div 
+          className="mx-auto max-w-6xl px-4 py-6 md:py-8"
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+        >
           {/* Top header */}
-          <div className="flex items-center justify-between gap-3 mb-6">
+          <motion.div variants={itemVariants} className="flex items-center justify-between gap-3 mb-6">
             <div>
               <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">
                 Network Overview
@@ -170,75 +199,75 @@ const DashboardPage: React.FC = () => {
               <Plus className="h-4 w-4" />
               <span>New Session</span>
             </button>
-          </div>
+          </motion.div>
 
           {/* Stats */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 shadow shadow-slate-950/40">
+          <motion.div variants={containerVariants} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <motion.div variants={itemVariants} whileHover={{ y: -4 }} className="rounded-xl border border-slate-800/80 bg-slate-900/60 backdrop-blur-xl p-4 shadow-lg shadow-slate-950/40 transition-all duration-200">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
+                  <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
                     Total Sessions
                   </p>
                   <p className="mt-2 text-2xl font-semibold">{totalSessions}</p>
                 </div>
-                <div className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 border border-slate-700">
+                <div className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900/80 border border-slate-700/50 shadow-inner">
                   <Database className="h-4 w-4 text-emerald-400" />
                 </div>
               </div>
-            </div>
+            </motion.div>
 
-            <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 shadow shadow-slate-950/40">
+            <motion.div variants={itemVariants} whileHover={{ y: -4 }} className="rounded-xl border border-slate-800/80 bg-slate-900/60 backdrop-blur-xl p-4 shadow-lg shadow-slate-950/40 transition-all duration-200">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
+                  <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
                     Running Sessions
                   </p>
                   <p className="mt-2 text-2xl font-semibold">{runningSessions}</p>
                 </div>
-                <div className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 border border-slate-700">
+                <div className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900/80 border border-slate-700/50 shadow-inner">
                   <Activity className="h-4 w-4 text-sky-400" />
                 </div>
               </div>
-            </div>
+            </motion.div>
 
-            <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 shadow shadow-slate-950/40">
+            <motion.div variants={itemVariants} whileHover={{ y: -4 }} className="rounded-xl border border-slate-800/80 bg-slate-900/60 backdrop-blur-xl p-4 shadow-lg shadow-slate-950/40 transition-all duration-200">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
+                  <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
                     Best Accuracy
                   </p>
                   <p className="mt-2 text-2xl font-semibold">
                     {(bestAccuracyValue * 100).toFixed(1)}%
                   </p>
                 </div>
-                <div className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 border border-slate-700">
+                <div className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900/80 border border-slate-700/50 shadow-inner">
                   <Target className="h-4 w-4 text-emerald-400" />
                 </div>
               </div>
-            </div>
+            </motion.div>
 
-            <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 shadow shadow-slate-950/40">
+            <motion.div variants={itemVariants} whileHover={{ y: -4 }} className="rounded-xl border border-slate-800/80 bg-slate-900/60 backdrop-blur-xl p-4 shadow-lg shadow-slate-950/40 transition-all duration-200">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
+                  <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
                     Avg Privacy Budget
                   </p>
                   <p className="mt-2 text-2xl font-semibold">
                     {avgPrivacyBudget.toFixed(2)}
                   </p>
                 </div>
-                <div className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 border border-slate-700">
+                <div className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900/80 border border-slate-700/50 shadow-inner">
                   <Shield className="h-4 w-4 text-emerald-400" />
                 </div>
               </div>
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
 
           {/* Sessions table / states */}
-          <div className="rounded-xl border border-slate-800 bg-slate-900/60 shadow-lg shadow-slate-950/50 overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
-              <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-400">
+          <motion.div variants={itemVariants} className="rounded-xl border border-slate-800/80 bg-slate-900/50 backdrop-blur-xl shadow-xl shadow-slate-950/50 overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-4 border-b border-slate-800/80 bg-slate-900/80">
+              <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-300">
                 Training Sessions
               </h2>
             </div>
@@ -283,10 +312,19 @@ const DashboardPage: React.FC = () => {
                       <th className="px-4 py-3 text-right">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800/80">
+                  <motion.tbody 
+                    variants={containerVariants}
+                    initial="hidden"
+                    animate="visible"
+                    className="divide-y divide-slate-800/60"
+                  >
                     {sessions.map((session) => (
-                      <tr key={session.id} className="hover:bg-slate-900/70">
-                        <td className="px-4 py-3">
+                      <motion.tr 
+                        variants={itemVariants}
+                        key={session.id} 
+                        className="hover:bg-slate-800/40 transition-colors duration-150 group"
+                      >
+                        <td className="px-4 py-4">
                           <div className="font-medium text-slate-50">
                             {session.name}
                           </div>
@@ -325,19 +363,19 @@ const DashboardPage: React.FC = () => {
                         <td className="px-4 py-3 text-right">
                           <button
                             onClick={() => handleViewSession(session.id)}
-                            className="inline-flex items-center rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-100 hover:bg-slate-800"
+                            className="inline-flex items-center rounded-lg border border-slate-700 bg-slate-900/50 px-3 py-1.5 text-xs font-medium text-slate-100 hover:bg-slate-700 hover:border-slate-600 transition-all shadow-sm"
                           >
                             View
                           </button>
                         </td>
-                      </tr>
+                      </motion.tr>
                     ))}
-                  </tbody>
+                  </motion.tbody>
                 </table>
               </div>
             )}
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       </main>
     </div>
   );

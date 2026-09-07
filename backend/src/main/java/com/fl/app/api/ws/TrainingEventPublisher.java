@@ -4,6 +4,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
 
 @Component
+@SuppressWarnings("null")
 public class TrainingEventPublisher {
 
     private final SimpMessagingTemplate messagingTemplate;

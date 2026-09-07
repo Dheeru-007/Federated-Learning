@@ -37,6 +37,7 @@ import com.fl.app.persistence.TrainingSessionRepository;
 import com.fl.app.persistence.UploadedDatasetRepository;
 
 @Service
+@SuppressWarnings("null")
 public class FlTrainingCoordinator {
 
     private static final Logger log = LoggerFactory.getLogger(FlTrainingCoordinator.class);
