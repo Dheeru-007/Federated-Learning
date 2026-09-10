@@ -22,7 +22,6 @@ import com.fl.app.persistence.UploadedDatasetRepository;
  * Encapsulates all business logic, keeping DatasetController as a thin HTTP mapping layer.
  */
 @Service
-@SuppressWarnings("null")
 public class DatasetService {
 
     private static final Logger log = LoggerFactory.getLogger(DatasetService.class);

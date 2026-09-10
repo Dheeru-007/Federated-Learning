@@ -20,13 +20,13 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
-import { motion } from 'framer-motion';
+import { motion, Variants } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { getSession, getRounds } from '../services/api';
 import { connectToSession } from '../services/websocket';
 import type { TrainingSession, RoundMetric, RoundUpdateMessage } from '../types';
 
-const containerVariants = {
+const containerVariants: Variants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
@@ -34,7 +34,7 @@ const containerVariants = {
   },
 };
 
-const itemVariants = {
+const itemVariants: Variants = {
   hidden: { y: 20, opacity: 0 },
   visible: {
     y: 0,
@@ -310,7 +310,6 @@ const SessionDetailPage: React.FC = () => {
                       : '—'}
                 </p>
               </div>
-            </div>
             </div>
           </motion.div>
 

@@ -5,7 +5,10 @@ com\fl\app\domain\TrainingSession$Status.class
 com\fl\app\api\ws\RoundUpdateMessage.class
 com\fl\app\fl\FlTrainingCoordinator$GlobalNormParams.class
 com\fl\app\security\JwtUtil.class
+META-INF\spring-configuration-metadata.json
+com\fl\app\security\AppSecurityProperties.class
 com\fl\app\fl\pipeline\DataIngestion$ParsedDataset.class
+com\fl\app\security\AppSecurityProperties$Jwt.class
 com\fl\app\persistence\TrainingSessionRepository.class
 com\fl\app\fl\pipeline\Aggregator$AggregationResult.class
 com\fl\app\fl\pipeline\SecurityLayer.class
@@ -36,7 +39,9 @@ com\fl\app\domain\User$Role.class
 com\fl\app\FlApplication.class
 com\fl\app\api\ws\TrainingEventPublisher.class
 com\fl\app\fl\FlTrainingCoordinator$EvaluationDataset.class
+com\fl\app\fl\pipeline\SecurityLayer$ParsedWeights.class
 com\fl\app\fl\FlTrainingCoordinator$HospitalData.class
+com\fl\app\security\AppSecurityProperties$Aes.class
 com\fl\app\security\UserDetailsServiceImpl.class
 com\fl\app\service\ServiceLayerMarker.class
 com\fl\app\persistence\ClientMetricRepository.class

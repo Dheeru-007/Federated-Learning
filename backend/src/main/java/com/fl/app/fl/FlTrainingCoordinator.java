@@ -143,8 +143,25 @@ public class FlTrainingCoordinator {
                     sessionId, hospitalData.length, session.getNumRounds());
             eventPublisher.publishSessionStatus(sessionId, "RUNNING", "Training started");
 
+            double[][] initW1 = new double[featureCount][16];
+            double[] initB1 = new double[16];
+            double[] initW2 = new double[16];
+            double initB2 = 0.0;
+            
+            Random initRand = new Random(12345);
+            double scale1 = Math.sqrt(2.0 / featureCount);
+            for (int i = 0; i < featureCount; i++) {
+                for (int j = 0; j < 16; j++) {
+                    initW1[i][j] = initRand.nextGaussian() * scale1;
+                }
+            }
+            double scale2 = Math.sqrt(2.0 / 16);
+            for (int j = 0; j < 16; j++) {
+                initW2[j] = initRand.nextGaussian() * scale2;
+            }
+
             LocalTrainer.ModelWeights globalWeights =
-                    new LocalTrainer.ModelWeights(new double[featureCount], 0.0, 0, 0, "Global");
+                    new LocalTrainer.ModelWeights(initW1, initB1, initW2, initB2, 0, 0, "Global");
 
             double finalAcc = 0;
             double finalLoss = 0;

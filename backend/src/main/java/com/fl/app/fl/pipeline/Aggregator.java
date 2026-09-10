@@ -46,18 +46,30 @@ public class Aggregator {
             throw new IllegalStateException("No valid updates to aggregate — all clients rejected");
         }
 
-        int    featureCount  = verified.get(0).weights().length;
-        long   totalSamples  = verified.stream().mapToLong(LocalTrainer.ModelWeights::sampleCount).sum();
+        int f = verified.get(0).W1().length;
+        int h = verified.get(0).W1()[0].length;
+        long totalSamples = verified.stream().mapToLong(LocalTrainer.ModelWeights::sampleCount).sum();
 
-        double[] globalWeights = new double[featureCount];
-        double   globalBias    = 0.0;
+        double[][] globalW1 = new double[f][h];
+        double[] globalB1 = new double[h];
+        double[] globalW2 = new double[h];
+        double globalB2 = 0.0;
 
         for (LocalTrainer.ModelWeights w : verified) {
             double clientWeight = (double) w.sampleCount() / totalSamples;
-            for (int i = 0; i < featureCount; i++) {
-                globalWeights[i] += clientWeight * w.weights()[i];
+            
+            for (int i = 0; i < f; i++) {
+                for (int j = 0; j < h; j++) {
+                    globalW1[i][j] += clientWeight * w.W1()[i][j];
+                }
             }
-            globalBias += clientWeight * w.bias();
+            
+            for (int j = 0; j < h; j++) {
+                globalB1[j] += clientWeight * w.b1()[j];
+                globalW2[j] += clientWeight * w.W2()[j];
+            }
+            
+            globalB2 += clientWeight * w.b2();
         }
 
         log.info("[Aggregator] Round {} — {}/{} clients accepted",
@@ -65,7 +77,7 @@ public class Aggregator {
 
         return new AggregationResult(
                 new LocalTrainer.ModelWeights(
-                        globalWeights, globalBias, (int) totalSamples, round, "Global"),
+                        globalW1, globalB1, globalW2, globalB2, (int) totalSamples, round, "Global"),
                 verified.size(),
                 rejectedIds.size(),
                 rejectedIds);

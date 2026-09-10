@@ -25,7 +25,6 @@ import com.fl.app.persistence.UploadedDatasetRepository;
  * Encapsulates all business logic, keeping SessionController as a thin HTTP mapping layer.
  */
 @Service
-@SuppressWarnings("null")
 public class SessionService {
 
     private static final Logger log = LoggerFactory.getLogger(SessionService.class);

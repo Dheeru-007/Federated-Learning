@@ -12,7 +12,7 @@ public class Evaluator {
             double[][] valFeatures,
             int[] valLabels) {
 
-        LocalTrainer evaluator = new LocalTrainer(globalWeights.weights().length);
+        LocalTrainer evaluator = new LocalTrainer(globalWeights.W1().length);
         evaluator.loadWeights(globalWeights);
 
         double accuracy = evaluator.evaluate(valFeatures, valLabels);

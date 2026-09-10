@@ -10,7 +10,6 @@ import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.Date;
 import javax.crypto.SecretKey;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -19,12 +18,9 @@ public class JwtUtil {
     private final SecretKey signingKey;
     private final long expirationSeconds;
 
-    public JwtUtil(
-            @Value("${app.security.jwt.secret}") String secret,
-            @Value("${app.security.jwt.expiration-seconds}") long expirationSeconds
-    ) {
-        this.signingKey = deriveHmacKey(secret);
-        this.expirationSeconds = expirationSeconds;
+    public JwtUtil(AppSecurityProperties properties) {
+        this.signingKey = deriveHmacKey(properties.getJwt().getSecret());
+        this.expirationSeconds = properties.getJwt().getExpirationSeconds();
     }
 
     public String generateToken(String username, String role) {

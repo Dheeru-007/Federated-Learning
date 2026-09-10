@@ -27,7 +27,7 @@ public class PrivacyEngine {
     /**
      * L2 sensitivity (gradient clip norm). Must match LocalTrainer.CLIP_NORM.
      */
-    private static final double SENSITIVITY = 1.0;
+    private static final double SENSITIVITY = 0.05;
 
     private final Random random = new Random();
 
@@ -45,16 +45,30 @@ public class PrivacyEngine {
 
         lastSigma = gaussianSigma(perRoundEpsilon, SENSITIVITY, DELTA);
 
-        double[] noisyWeights = new double[weights.weights().length];
-        for (int i = 0; i < weights.weights().length; i++) {
-            noisyWeights[i] = weights.weights()[i] + random.nextGaussian() * lastSigma;
+        double[][] noisyW1 = new double[weights.W1().length][weights.W1()[0].length];
+        for (int i = 0; i < weights.W1().length; i++) {
+            for (int j = 0; j < weights.W1()[0].length; j++) {
+                noisyW1[i][j] = weights.W1()[i][j] + random.nextGaussian() * lastSigma;
+            }
         }
 
-        double noisyBias = weights.bias() + random.nextGaussian() * lastSigma;
+        double[] noisyB1 = new double[weights.b1().length];
+        for (int j = 0; j < weights.b1().length; j++) {
+            noisyB1[j] = weights.b1()[j] + random.nextGaussian() * lastSigma;
+        }
+
+        double[] noisyW2 = new double[weights.W2().length];
+        for (int j = 0; j < weights.W2().length; j++) {
+            noisyW2[j] = weights.W2()[j] + random.nextGaussian() * lastSigma;
+        }
+
+        double noisyB2 = weights.b2() + random.nextGaussian() * lastSigma;
 
         return new LocalTrainer.ModelWeights(
-            noisyWeights,
-            noisyBias,
+            noisyW1,
+            noisyB1,
+            noisyW2,
+            noisyB2,
             weights.sampleCount(),
             weights.round(),
             weights.clientId()

@@ -10,7 +10,7 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
-import org.springframework.beans.factory.annotation.Value;
+import com.fl.app.security.AppSecurityProperties;
 import org.springframework.stereotype.Component;
 
 /**
@@ -32,8 +32,9 @@ public class SecurityLayer {
     private final SecretKey    secretKey;
     private final SecureRandom secureRandom = new SecureRandom();
 
-    // ─── Constructor — key injected from application.properties ─────────────
-    public SecurityLayer(@Value("${app.security.aes.key}") String keyHex) {
+    // ─── Constructor — key injected from AppSecurityProperties ──────────────
+    public SecurityLayer(AppSecurityProperties properties) {
+        String keyHex = properties.getAes().getKey();
         byte[] keyBytes = hexToBytes(keyHex);
         if (keyBytes.length != 32) {
             throw new IllegalArgumentException(
@@ -62,7 +63,7 @@ public class SecurityLayer {
      */
     public SecuredUpdate secure(LocalTrainer.ModelWeights weights) {
         try {
-            byte[] serialized = serialize(weights.weights(), weights.bias());
+            byte[] serialized = serialize(weights.W1(), weights.b1(), weights.W2(), weights.b2());
             String hash       = sha256(serialized);
             byte[] encrypted  = encrypt(serialized);
 
@@ -90,11 +91,10 @@ public class SecurityLayer {
                     + " — update rejected as potentially malicious");
             }
 
-            double[] weights = deserializeWeights(decrypted);
-            double   bias    = deserializeBias(decrypted);
+            ParsedWeights parsed = deserializeAll(decrypted);
 
             return new LocalTrainer.ModelWeights(
-                weights, bias,
+                parsed.W1, parsed.b1, parsed.W2, parsed.b2,
                 update.sampleCount(), update.round(), update.clientId());
 
         } catch (SecurityException e) {
@@ -138,27 +138,50 @@ public class SecurityLayer {
     //
     // Layout: [4-byte int: weight count | N × 8-byte doubles: weights | 8-byte double: bias]
 
-    private static byte[] serialize(double[] weights, double bias) {
-        ByteBuffer buf = ByteBuffer.allocate(Integer.BYTES + weights.length * Double.BYTES + Double.BYTES);
-        buf.putInt(weights.length);
-        for (double w : weights) buf.putDouble(w);
-        buf.putDouble(bias);
+    private static byte[] serialize(double[][] W1, double[] b1, double[] W2, double b2) {
+        int f = W1.length;
+        int h = W1[0].length;
+        int numDoubles = (f * h) + h + h + 1;
+        
+        ByteBuffer buf = ByteBuffer.allocate(Integer.BYTES * 2 + numDoubles * Double.BYTES);
+        buf.putInt(f);
+        buf.putInt(h);
+        
+        for (int i = 0; i < f; i++) {
+            for (int j = 0; j < h; j++) {
+                buf.putDouble(W1[i][j]);
+            }
+        }
+        for (int j = 0; j < h; j++) buf.putDouble(b1[j]);
+        for (int j = 0; j < h; j++) buf.putDouble(W2[j]);
+        buf.putDouble(b2);
+        
         return buf.array();
     }
 
-    private static double[] deserializeWeights(byte[] data) {
-        ByteBuffer buf = ByteBuffer.wrap(data);
-        int len = buf.getInt();
-        double[] weights = new double[len];
-        for (int i = 0; i < len; i++) weights[i] = buf.getDouble();
-        return weights;
-    }
+    private record ParsedWeights(double[][] W1, double[] b1, double[] W2, double b2) {}
 
-    private static double deserializeBias(byte[] data) {
+    private static ParsedWeights deserializeAll(byte[] data) {
         ByteBuffer buf = ByteBuffer.wrap(data);
-        int len = buf.getInt();
-        buf.position(Integer.BYTES + len * Double.BYTES); // skip past weights
-        return buf.getDouble();
+        int f = buf.getInt();
+        int h = buf.getInt();
+        
+        double[][] W1 = new double[f][h];
+        for (int i = 0; i < f; i++) {
+            for (int j = 0; j < h; j++) {
+                W1[i][j] = buf.getDouble();
+            }
+        }
+        
+        double[] b1 = new double[h];
+        for (int j = 0; j < h; j++) b1[j] = buf.getDouble();
+        
+        double[] W2 = new double[h];
+        for (int j = 0; j < h; j++) W2[j] = buf.getDouble();
+        
+        double b2 = buf.getDouble();
+        
+        return new ParsedWeights(W1, b1, W2, b2);
     }
 
     // ─── Hashing ─────────────────────────────────────────────────────────────
