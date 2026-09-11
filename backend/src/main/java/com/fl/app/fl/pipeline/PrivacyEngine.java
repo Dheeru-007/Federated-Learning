@@ -41,37 +41,78 @@ public class PrivacyEngine {
      * @param perRoundEpsilon  ε budget for this single round (= totalBudget / numRounds)
      */
     public LocalTrainer.ModelWeights applyNoise(
-            LocalTrainer.ModelWeights weights, double perRoundEpsilon) {
+            LocalTrainer.ModelWeights localWeights,
+            LocalTrainer.ModelWeights globalWeights,
+            double perRoundEpsilon) {
 
         lastSigma = gaussianSigma(perRoundEpsilon, SENSITIVITY, DELTA);
 
-        double[][] noisyW1 = new double[weights.W1().length][weights.W1()[0].length];
-        for (int i = 0; i < weights.W1().length; i++) {
-            for (int j = 0; j < weights.W1()[0].length; j++) {
-                noisyW1[i][j] = weights.W1()[i][j] + random.nextGaussian() * lastSigma;
+        // 1. Calculate delta = localWeights - globalWeights
+        double[][] deltaW1 = new double[localWeights.W1().length][localWeights.W1()[0].length];
+        double[] deltaB1 = new double[localWeights.b1().length];
+        double[] deltaW2 = new double[localWeights.W2().length];
+        double deltaB2 = localWeights.b2() - globalWeights.b2();
+
+        double normSq = deltaB2 * deltaB2;
+
+        for (int i = 0; i < localWeights.W1().length; i++) {
+            for (int j = 0; j < localWeights.W1()[0].length; j++) {
+                double diff = localWeights.W1()[i][j] - globalWeights.W1()[i][j];
+                deltaW1[i][j] = diff;
+                normSq += diff * diff;
+            }
+        }
+        for (int j = 0; j < localWeights.b1().length; j++) {
+            double diff = localWeights.b1()[j] - globalWeights.b1()[j];
+            deltaB1[j] = diff;
+            normSq += diff * diff;
+        }
+        for (int j = 0; j < localWeights.W2().length; j++) {
+            double diff = localWeights.W2()[j] - globalWeights.W2()[j];
+            deltaW2[j] = diff;
+            normSq += diff * diff;
+        }
+
+        double norm = Math.sqrt(normSq);
+
+        // 2. Clip delta to SENSITIVITY
+        double clipMultiplier = 1.0;
+        if (norm > SENSITIVITY) {
+            clipMultiplier = SENSITIVITY / norm;
+        }
+
+        // 3. Add noise to clipped delta and add back to global weights
+        double[][] noisyW1 = new double[localWeights.W1().length][localWeights.W1()[0].length];
+        for (int i = 0; i < localWeights.W1().length; i++) {
+            for (int j = 0; j < localWeights.W1()[0].length; j++) {
+                double clippedDelta = deltaW1[i][j] * clipMultiplier;
+                noisyW1[i][j] = globalWeights.W1()[i][j] + clippedDelta + random.nextGaussian() * lastSigma;
             }
         }
 
-        double[] noisyB1 = new double[weights.b1().length];
-        for (int j = 0; j < weights.b1().length; j++) {
-            noisyB1[j] = weights.b1()[j] + random.nextGaussian() * lastSigma;
+        double[] noisyB1 = new double[localWeights.b1().length];
+        for (int j = 0; j < localWeights.b1().length; j++) {
+            double clippedDelta = deltaB1[j] * clipMultiplier;
+            noisyB1[j] = globalWeights.b1()[j] + clippedDelta + random.nextGaussian() * lastSigma;
         }
 
-        double[] noisyW2 = new double[weights.W2().length];
-        for (int j = 0; j < weights.W2().length; j++) {
-            noisyW2[j] = weights.W2()[j] + random.nextGaussian() * lastSigma;
+        double[] noisyW2 = new double[localWeights.W2().length];
+        for (int j = 0; j < localWeights.W2().length; j++) {
+            double clippedDelta = deltaW2[j] * clipMultiplier;
+            noisyW2[j] = globalWeights.W2()[j] + clippedDelta + random.nextGaussian() * lastSigma;
         }
 
-        double noisyB2 = weights.b2() + random.nextGaussian() * lastSigma;
+        double clippedDeltaB2 = deltaB2 * clipMultiplier;
+        double noisyB2 = globalWeights.b2() + clippedDeltaB2 + random.nextGaussian() * lastSigma;
 
         return new LocalTrainer.ModelWeights(
             noisyW1,
             noisyB1,
             noisyW2,
             noisyB2,
-            weights.sampleCount(),
-            weights.round(),
-            weights.clientId()
+            localWeights.sampleCount(),
+            localWeights.round(),
+            localWeights.clientId()
         );
     }
 

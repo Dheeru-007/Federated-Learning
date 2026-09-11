@@ -3,6 +3,7 @@ package com.fl.app.fl;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
@@ -413,7 +414,7 @@ public class FlTrainingCoordinator {
 
         PrivacyEngine roundPrivacyEngine = new PrivacyEngine();
         LocalTrainer.ModelWeights noisyWeights =
-                roundPrivacyEngine.applyNoise(rawWeights, perRoundEpsilon);
+                roundPrivacyEngine.applyNoise(rawWeights, globalWeights, perRoundEpsilon);
 
         SecurityLayer.SecuredUpdate secured = securityLayer.secure(noisyWeights);
 
@@ -469,15 +470,54 @@ public class FlTrainingCoordinator {
             double[][] features = parsed.features();
             int[] labels = parsed.labels();
 
-            // Hold out 20% from each hospital for validation
-            int valSize = Math.max(1, features.length / 5);
-            int trainSize = features.length - valSize;
+            // 1. Separate by class for stratification
+            List<Integer> class0Indices = new ArrayList<>();
+            List<Integer> class1Indices = new ArrayList<>();
+            for (int j = 0; j < labels.length; j++) {
+                if (labels[j] == 0) {
+                    class0Indices.add(j);
+                } else {
+                    class1Indices.add(j);
+                }
+            }
 
-            double[][] trainFeatures = Arrays.copyOfRange(features, 0, trainSize);
-            int[] trainLabels = Arrays.copyOfRange(labels, 0, trainSize);
+            // 2. Shuffle each class with fixed seed
+            Random rand = new Random(42);
+            Collections.shuffle(class0Indices, rand);
+            Collections.shuffle(class1Indices, rand);
 
-            double[][] valFeatures = Arrays.copyOfRange(features, trainSize, features.length);
-            int[] valLabels = Arrays.copyOfRange(labels, trainSize, labels.length);
+            // 3. Compute 80/20 split sizes for each class
+            int train0Size = (int) (class0Indices.size() * 0.8);
+            int train1Size = (int) (class1Indices.size() * 0.8);
+
+            List<Integer> trainIndices = new ArrayList<>();
+            List<Integer> valIndices = new ArrayList<>();
+
+            trainIndices.addAll(class0Indices.subList(0, train0Size));
+            valIndices.addAll(class0Indices.subList(train0Size, class0Indices.size()));
+
+            trainIndices.addAll(class1Indices.subList(0, train1Size));
+            valIndices.addAll(class1Indices.subList(train1Size, class1Indices.size()));
+
+            // 4. Shuffle the train and val sets to intermix classes
+            Collections.shuffle(trainIndices, rand);
+            Collections.shuffle(valIndices, rand);
+
+            double[][] trainFeatures = new double[trainIndices.size()][];
+            int[] trainLabels = new int[trainIndices.size()];
+            for (int j = 0; j < trainIndices.size(); j++) {
+                int idx = trainIndices.get(j);
+                trainFeatures[j] = features[idx];
+                trainLabels[j] = labels[idx];
+            }
+
+            double[][] valFeatures = new double[valIndices.size()][];
+            int[] valLabels = new int[valIndices.size()];
+            for (int j = 0; j < valIndices.size(); j++) {
+                int idx = valIndices.get(j);
+                valFeatures[j] = features[idx];
+                valLabels[j] = labels[idx];
+            }
 
             // Accumulate validation data from ALL hospitals
             for (double[] row : valFeatures) allValFeatures.add(row);
