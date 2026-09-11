@@ -50,6 +50,18 @@ public class TrainingSession {
     @Column(nullable = false)
     private double privacyBudget;
 
+    @Column(nullable = false)
+    @Builder.Default
+    private double clipNorm = 1.0;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private double noiseSigma = 0.05;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private int localEpochs = 1;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     @Builder.Default
@@ -59,6 +71,9 @@ public class TrainingSession {
     private boolean maliciousClientEnabled = false;
 
     private Integer featureCount;
+
+    @Column(length = 2000)
+    private String expectedHeaders;
 
     @Builder.Default
     private int hospitalsUploaded = 0;
@@ -70,9 +85,21 @@ public class TrainingSession {
 
     private LocalDateTime finishedAt;
 
-    private Double finalAccuracy;
+    private Double testAccuracy;
 
-    private Double finalLoss;
+    private Double testLoss;
+
+    private Double testPrecision;
+
+    private Double testRecall;
+
+    private Double testSpecificity;
+
+    private Double testF1Score;
+
+    private Double testRocAuc;
+
+    private Double testPrAuc;
 
     public enum Status {
         PENDING,

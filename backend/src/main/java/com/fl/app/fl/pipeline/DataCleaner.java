@@ -1,9 +1,15 @@
 package com.fl.app.fl.pipeline;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public class DataCleaner {
+
+    private static final Logger log = LoggerFactory.getLogger(DataCleaner.class);
 
     public record CleanedDataset(
         double[][] features,
@@ -11,12 +17,15 @@ public class DataCleaner {
         int originalRows,
         int removedMissing,
         int removedDuplicates,
-        int removedOutliers,
+        int featuresWinsorized,
         int finalRows
     ) {}
 
     public static CleanedDataset clean(double[][] features, int[] labels) {
         int originalRows = features.length;
+        if (originalRows == 0) {
+            return new CleanedDataset(features, labels, 0, 0, 0, 0, 0);
+        }
         int featureCount = features[0].length;
 
         List<double[]> cleanFeatures = new ArrayList<>();
@@ -40,75 +49,80 @@ public class DataCleaner {
             }
         }
 
-        // Step 2 — Remove duplicate rows
+        // Step 2 — Remove duplicate rows (Comparing both FEATURES and LABEL)
         int removedDuplicates = 0;
         List<double[]> dedupFeatures = new ArrayList<>();
         List<Integer> dedupLabels = new ArrayList<>();
 
         for (int i = 0; i < cleanFeatures.size(); i++) {
             boolean isDuplicate = false;
-            for (double[] existing : dedupFeatures) {
-                if (java.util.Arrays.equals(existing, cleanFeatures.get(i))) {
+            double[] currentFeatures = cleanFeatures.get(i);
+            int currentLabel = cleanLabels.get(i);
+
+            for (int j = 0; j < dedupFeatures.size(); j++) {
+                if (dedupLabels.get(j) == currentLabel && Arrays.equals(dedupFeatures.get(j), currentFeatures)) {
                     isDuplicate = true;
                     break;
                 }
             }
+
             if (!isDuplicate) {
-                dedupFeatures.add(cleanFeatures.get(i));
-                dedupLabels.add(cleanLabels.get(i));
+                dedupFeatures.add(currentFeatures);
+                dedupLabels.add(currentLabel);
             } else {
                 removedDuplicates++;
             }
         }
 
-        // Step 3 — Remove outliers (beyond 3 standard deviations per feature)
-        int removedOutliers = 0;
-        double[] mean = new double[featureCount];
-        double[] std = new double[featureCount];
+        // Step 3 — Winsorization (Clipping Outliers instead of deleting)
+        int featuresWinsorized = 0;
+        if (!dedupFeatures.isEmpty()) {
+            double[] mean = new double[featureCount];
+            double[] std = new double[featureCount];
 
-        for (double[] row : dedupFeatures) {
-            for (int j = 0; j < featureCount; j++) {
-                mean[j] += row[j];
-            }
-        }
-        for (int j = 0; j < featureCount; j++) {
-            mean[j] /= dedupFeatures.size();
-        }
-
-        for (double[] row : dedupFeatures) {
-            for (int j = 0; j < featureCount; j++) {
-                std[j] += Math.pow(row[j] - mean[j], 2);
-            }
-        }
-        for (int j = 0; j < featureCount; j++) {
-            std[j] = Math.sqrt(std[j] / dedupFeatures.size());
-        }
-
-        List<double[]> finalFeatures = new ArrayList<>();
-        List<Integer> finalLabels = new ArrayList<>();
-
-        for (int i = 0; i < dedupFeatures.size(); i++) {
-            boolean isOutlier = false;
-            for (int j = 0; j < featureCount; j++) {
-                if (std[j] > 0 && Math.abs(dedupFeatures.get(i)[j] - mean[j]) > 3 * std[j]) {
-                    isOutlier = true;
-                    break;
+            for (double[] row : dedupFeatures) {
+                for (int j = 0; j < featureCount; j++) {
+                    mean[j] += row[j];
                 }
             }
-            if (!isOutlier) {
-                finalFeatures.add(dedupFeatures.get(i));
-                finalLabels.add(dedupLabels.get(i));
-            } else {
-                removedOutliers++;
+            for (int j = 0; j < featureCount; j++) {
+                mean[j] /= dedupFeatures.size();
+            }
+
+            for (double[] row : dedupFeatures) {
+                for (int j = 0; j < featureCount; j++) {
+                    std[j] += Math.pow(row[j] - mean[j], 2);
+                }
+            }
+            for (int j = 0; j < featureCount; j++) {
+                std[j] = Math.sqrt(std[j] / dedupFeatures.size());
+            }
+
+            for (double[] row : dedupFeatures) {
+                for (int j = 0; j < featureCount; j++) {
+                    if (std[j] > 0) {
+                        double zScore = (row[j] - mean[j]) / std[j];
+                        if (zScore > 3.0) {
+                            row[j] = mean[j] + 3.0 * std[j]; // Clip to +3 std
+                            featuresWinsorized++;
+                        } else if (zScore < -3.0) {
+                            row[j] = mean[j] - 3.0 * std[j]; // Clip to -3 std
+                            featuresWinsorized++;
+                        }
+                    }
+                }
             }
         }
 
-        double[][] result = finalFeatures.toArray(new double[0][]);
-        int[] resultLabels = finalLabels.stream().mapToInt(i -> i).toArray();
+        double[][] result = dedupFeatures.toArray(new double[0][]);
+        int[] resultLabels = dedupLabels.stream().mapToInt(i -> i).toArray();
+
+        log.info("DataCleaning complete: Original={}, RemovedMissing={}, RemovedDuplicates={}, FeaturesWinsorized={}, Final={}", 
+                originalRows, removedMissing, removedDuplicates, featuresWinsorized, result.length);
 
         return new CleanedDataset(
             result, resultLabels,
-            originalRows, removedMissing, removedDuplicates, removedOutliers,
+            originalRows, removedMissing, removedDuplicates, featuresWinsorized,
             result.length
         );
     }

@@ -119,10 +119,10 @@ public class FlTrainingCoordinator {
             TrainingSession session = sessionRepository.findById(sessionId)
                     .orElseThrow(() -> new IllegalArgumentException("Session not found"));
 
-            // Resolve training + validation data together (thread-safe, no shared state)
             ResolvedData resolvedData = resolveAllData(session);
-            HospitalData[] hospitalData = resolvedData.trainingData();
-            EvaluationDataset evaluationDataset = resolvedData.validationData();
+            HospitalData[] hospitalData = resolvedData.hospitalData();
+            EvaluationDataset evaluationDataset = resolvedData.globalValidationData();
+            EvaluationDataset testDataset = resolvedData.globalTestData();
 
             int featureCount = validateAndResolveFeatureCount(hospitalData);
 
@@ -199,6 +199,16 @@ public class FlTrainingCoordinator {
                         .roundNumber(round)
                         .globalAccuracy(finalAcc)
                         .globalLoss(finalLoss)
+                        .precision(eval.precision())
+                        .recall(eval.recall())
+                        .specificity(eval.specificity())
+                        .f1Score(eval.f1Score())
+                        .rocAuc(eval.rocAuc())
+                        .prAuc(eval.prAuc())
+                        .tp(eval.tp())
+                        .tn(eval.tn())
+                        .fp(eval.fp())
+                        .fn(eval.fn())
                         .numClients(result.acceptedClients())
                         .bytesTransferred(communication)
                         .epsilonConsumed(perRoundEpsilon)  // per-round ε, not total budget
@@ -229,10 +239,41 @@ public class FlTrainingCoordinator {
                 }
             }
 
+            // Final Test Pass
+            double[][] normTestFeatures = DataNormalizer.normalizeWithParams(
+                    testDataset.features(), globalNorm.min(), globalNorm.max());
+            
+            Evaluator.EvaluationResult testEval = Evaluator.evaluate(
+                    globalWeights, normTestFeatures, testDataset.labels());
+
+            session.setTestAccuracy(testEval.accuracy());
+            session.setTestLoss(testEval.loss());
+            session.setTestPrecision(testEval.precision());
+            session.setTestRecall(testEval.recall());
+            session.setTestSpecificity(testEval.specificity());
+            session.setTestF1Score(testEval.f1Score());
+            session.setTestRocAuc(testEval.rocAuc());
+            session.setTestPrAuc(testEval.prAuc());
+            
+            log.info("==========================================");
+            log.info("--- GLOBAL TEST METRICS ---");
+            log.info("Accuracy: {}, Recall: {}, F1: {}, PR-AUC: {}", 
+                testEval.accuracy(), testEval.recall(), testEval.f1Score(), testEval.prAuc());
+            
+            log.info("--- PER-HOSPITAL TEST METRICS ---");
+            for (HospitalData h : hospitalData) {
+                if (h.testFeatures().length == 0) continue;
+                double[][] normHTestFeatures = DataNormalizer.normalizeWithParams(
+                    h.testFeatures(), globalNorm.min(), globalNorm.max());
+                Evaluator.EvaluationResult hEval = Evaluator.evaluate(
+                    globalWeights, normHTestFeatures, h.testLabels());
+                log.info("Hospital {}: Accuracy: {}, Recall: {}, F1: {}, PR-AUC: {}", 
+                    h.name(), hEval.accuracy(), hEval.recall(), hEval.f1Score(), hEval.prAuc());
+            }
+            log.info("==========================================");
+
             session.setStatus(Status.COMPLETED);
             session.setFinishedAt(LocalDateTime.now());
-            session.setFinalAccuracy(finalAcc);
-            session.setFinalLoss(finalLoss);
             sessionRepository.save(session);
 
             eventPublisher.publishSessionStatus(sessionId, "COMPLETED", "Training completed");
@@ -260,9 +301,10 @@ public class FlTrainingCoordinator {
         if (session.getDataSource() == TrainingSession.DataSource.CSV) {
             return loadCSVData(session);
         } else {
-            HospitalData[] trainingData = generateSimulatedData(session.getNumHospitals());
-            EvaluationDataset validationData = generateSimulatedValidation();
-            return new ResolvedData(trainingData, validationData);
+            HospitalData[] hospitalData = generateSimulatedData(session.getNumHospitals());
+            EvaluationDataset validationData = generateSimulatedValidation(999);
+            EvaluationDataset testData = generateSimulatedValidation(1000);
+            return new ResolvedData(hospitalData, validationData, testData);
         }
     }
 
@@ -274,22 +316,22 @@ public class FlTrainingCoordinator {
         int featureCount = -1;
 
         for (HospitalData hospital : hospitalData) {
-            if (hospital.features().length == 0 || hospital.labels().length == 0) {
+            if (hospital.trainFeatures().length == 0 || hospital.trainLabels().length == 0) {
                 throw new IllegalStateException("Hospital dataset is empty: " + hospital.name());
             }
 
-            if (hospital.features().length != hospital.labels().length) {
+            if (hospital.trainFeatures().length != hospital.trainLabels().length) {
                 throw new IllegalStateException(
                         "Feature/label size mismatch for hospital: " + hospital.name());
             }
 
-            int currentFeatureCount = hospital.features()[0].length;
+            int currentFeatureCount = hospital.trainFeatures()[0].length;
             if (currentFeatureCount == 0) {
                 throw new IllegalStateException(
                         "Hospital dataset has zero features: " + hospital.name());
             }
 
-            for (double[] row : hospital.features()) {
+            for (double[] row : hospital.trainFeatures()) {
                 if (row.length != currentFeatureCount) {
                     throw new IllegalStateException(
                             "Inconsistent feature width for hospital: " + hospital.name());
@@ -321,7 +363,7 @@ public class FlTrainingCoordinator {
         Arrays.fill(globalMax, -Double.MAX_VALUE);
 
         for (HospitalData hospital : hospitalData) {
-            for (double[] row : hospital.features()) {
+            for (double[] row : hospital.trainFeatures()) {
                 for (int j = 0; j < featureCount; j++) {
                     if (row[j] < globalMin[j]) globalMin[j] = row[j];
                     if (row[j] > globalMax[j]) globalMax[j] = row[j];
@@ -385,7 +427,7 @@ public class FlTrainingCoordinator {
             GlobalNormParams globalNorm) {
 
         DataCleaner.CleanedDataset cleaned =
-                DataCleaner.clean(hospital.features(), hospital.labels());
+                DataCleaner.clean(hospital.trainFeatures(), hospital.trainLabels());
 
         if (cleaned.features().length == 0 || cleaned.labels().length == 0) {
             throw new IllegalStateException(
@@ -406,7 +448,10 @@ public class FlTrainingCoordinator {
                 hospital.name(),
                 round);
 
-        double localAccuracy = trainer.evaluate(normalizedFeatures, cleaned.labels());
+        Evaluator.EvaluationResult localEval = Evaluator.evaluate(
+                rawWeights,
+                normalizedFeatures,
+                cleaned.labels());
 
         // Per-round epsilon: divide total budget evenly across rounds
         // This ensures simple composition ε_total = numRounds × ε_per_round stays within budget
@@ -423,7 +468,17 @@ public class FlTrainingCoordinator {
                 .roundNumber(round)
                 .clientId(clientId)
                 .hospitalName(hospital.name())
-                .localAccuracy(localAccuracy)
+                .localAccuracy(localEval.accuracy())
+                .precision(localEval.precision())
+                .recall(localEval.recall())
+                .specificity(localEval.specificity())
+                .f1Score(localEval.f1Score())
+                .rocAuc(localEval.rocAuc())
+                .prAuc(localEval.prAuc())
+                .tp(localEval.tp())
+                .tn(localEval.tn())
+                .fp(localEval.fp())
+                .fn(localEval.fn())
                 .epsilonConsumed(roundPrivacyEngine.computeEpsilonConsumed())  // actual ε, derived from sigma
                 .bytesSent((long) secured.encryptedWeights().length)
                 .build();
@@ -461,6 +516,8 @@ public class FlTrainingCoordinator {
 
         List<double[]> allValFeatures = new ArrayList<>();
         List<Integer> allValLabels = new ArrayList<>();
+        List<double[]> allTestFeatures = new ArrayList<>();
+        List<Integer> allTestLabels = new ArrayList<>();
 
         HospitalData[] trainingData = new HospitalData[datasets.size()];
         for (int i = 0; i < datasets.size(); i++) {
@@ -486,22 +543,29 @@ public class FlTrainingCoordinator {
             Collections.shuffle(class0Indices, rand);
             Collections.shuffle(class1Indices, rand);
 
-            // 3. Compute 80/20 split sizes for each class
-            int train0Size = (int) (class0Indices.size() * 0.8);
-            int train1Size = (int) (class1Indices.size() * 0.8);
+            // 3. Compute 70/15/15 split sizes for each class
+            int train0Size = (int) (class0Indices.size() * 0.70);
+            int val0Size = (int) (class0Indices.size() * 0.15);
+            
+            int train1Size = (int) (class1Indices.size() * 0.70);
+            int val1Size = (int) (class1Indices.size() * 0.15);
 
             List<Integer> trainIndices = new ArrayList<>();
             List<Integer> valIndices = new ArrayList<>();
+            List<Integer> testIndices = new ArrayList<>();
 
             trainIndices.addAll(class0Indices.subList(0, train0Size));
-            valIndices.addAll(class0Indices.subList(train0Size, class0Indices.size()));
+            valIndices.addAll(class0Indices.subList(train0Size, train0Size + val0Size));
+            testIndices.addAll(class0Indices.subList(train0Size + val0Size, class0Indices.size()));
 
             trainIndices.addAll(class1Indices.subList(0, train1Size));
-            valIndices.addAll(class1Indices.subList(train1Size, class1Indices.size()));
+            valIndices.addAll(class1Indices.subList(train1Size, train1Size + val1Size));
+            testIndices.addAll(class1Indices.subList(train1Size + val1Size, class1Indices.size()));
 
-            // 4. Shuffle the train and val sets to intermix classes
+            // 4. Shuffle the train, val, test sets to intermix classes
             Collections.shuffle(trainIndices, rand);
             Collections.shuffle(valIndices, rand);
+            Collections.shuffle(testIndices, rand);
 
             double[][] trainFeatures = new double[trainIndices.size()][];
             int[] trainLabels = new int[trainIndices.size()];
@@ -517,21 +581,32 @@ public class FlTrainingCoordinator {
                 int idx = valIndices.get(j);
                 valFeatures[j] = features[idx];
                 valLabels[j] = labels[idx];
+                allValFeatures.add(features[idx]);
+                allValLabels.add(labels[idx]);
+            }
+            
+            double[][] testFeatures = new double[testIndices.size()][];
+            int[] testLabels = new int[testIndices.size()];
+            for (int j = 0; j < testIndices.size(); j++) {
+                int idx = testIndices.get(j);
+                testFeatures[j] = features[idx];
+                testLabels[j] = labels[idx];
+                allTestFeatures.add(features[idx]);
+                allTestLabels.add(labels[idx]);
             }
 
-            // Accumulate validation data from ALL hospitals
-            for (double[] row : valFeatures) allValFeatures.add(row);
-            for (int lbl : valLabels) allValLabels.add(lbl);
-
-            // Hospital trains on only 80%
-            trainingData[i] = new HospitalData(ds.getHospitalName(), trainFeatures, trainLabels);
+            trainingData[i] = new HospitalData(ds.getHospitalName(), trainFeatures, trainLabels, testFeatures, testLabels);
         }
 
         EvaluationDataset validationData = new EvaluationDataset(
                 allValFeatures.toArray(new double[0][]),
                 allValLabels.stream().mapToInt(x -> x).toArray());
+                
+        EvaluationDataset testData = new EvaluationDataset(
+                allTestFeatures.toArray(new double[0][]),
+                allTestLabels.stream().mapToInt(x -> x).toArray());
 
-        return new ResolvedData(trainingData, validationData);
+        return new ResolvedData(trainingData, validationData, testData);
     }
 
     // -----------------------------------------------------------------------
@@ -544,22 +619,27 @@ public class FlTrainingCoordinator {
         Random rand = new Random(42);  // Training seed
 
         for (int h = 0; h < hospitalCount; h++) {
-            int samples = 100 + rand.nextInt(50);
+            int trainSamples = 100 + rand.nextInt(50);
+            int testSamples = 20;
             int features = 10;
 
-            double[][] X = new double[samples][features];
-            int[] y = new int[samples];
-
-            for (int i = 0; i < samples; i++) {
-                for (int j = 0; j < features; j++) {
-                    X[i][j] = rand.nextGaussian();
-                }
-                // Create a learnable pattern: label = 1 if sum of first 3 features > 0
-                double signal = X[i][0] + X[i][1] + X[i][2];
-                y[i] = signal > 0 ? 1 : 0;
+            double[][] trainX = new double[trainSamples][features];
+            int[] trainY = new int[trainSamples];
+            for (int i = 0; i < trainSamples; i++) {
+                for (int j = 0; j < features; j++) trainX[i][j] = rand.nextGaussian();
+                double signal = trainX[i][0] + trainX[i][1] + trainX[i][2];
+                trainY[i] = signal > 0 ? 1 : 0;
+            }
+            
+            double[][] testX = new double[testSamples][features];
+            int[] testY = new int[testSamples];
+            for (int i = 0; i < testSamples; i++) {
+                for (int j = 0; j < features; j++) testX[i][j] = rand.nextGaussian();
+                double signal = testX[i][0] + testX[i][1] + testX[i][2];
+                testY[i] = signal > 0 ? 1 : 0;
             }
 
-            result[h] = new HospitalData("Hospital-" + h, X, y);
+            result[h] = new HospitalData("Hospital-" + h, trainX, trainY, testX, testY);
         }
 
         return result;
@@ -569,8 +649,8 @@ public class FlTrainingCoordinator {
      * Generate a completely separate validation dataset using a DIFFERENT seed
      * so there is zero overlap with training data.
      */
-    private EvaluationDataset generateSimulatedValidation() {
-        Random valRand = new Random(999);  // Different seed from training (42)
+    private EvaluationDataset generateSimulatedValidation(int seed) {
+        Random valRand = new Random(seed);
         int valSamples = 50;
         int features = 10;
 
@@ -581,7 +661,6 @@ public class FlTrainingCoordinator {
             for (int j = 0; j < features; j++) {
                 X[i][j] = valRand.nextGaussian();
             }
-            // Same learnable pattern as training data
             double signal = X[i][0] + X[i][1] + X[i][2];
             y[i] = signal > 0 ? 1 : 0;
         }
@@ -595,8 +674,9 @@ public class FlTrainingCoordinator {
 
     /** Bundles training data + validation data from a single resolve call. */
     private record ResolvedData(
-            HospitalData[] trainingData,
-            EvaluationDataset validationData) {}
+            HospitalData[] hospitalData,
+            EvaluationDataset globalValidationData,
+            EvaluationDataset globalTestData) {}
 
     private record EvaluationDataset(double[][] features, int[] labels) {}
 
@@ -612,5 +692,8 @@ public class FlTrainingCoordinator {
             List<ClientMetric> clientMetrics,
             long totalCommunicationBytes) {}
 
-    private record HospitalData(String name, double[][] features, int[] labels) {}
+    private record HospitalData(
+            String name, 
+            double[][] trainFeatures, int[] trainLabels,
+            double[][] testFeatures, int[] testLabels) {}
 }

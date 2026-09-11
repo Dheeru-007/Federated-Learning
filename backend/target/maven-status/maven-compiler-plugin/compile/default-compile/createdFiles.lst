@@ -14,6 +14,7 @@ com\fl\app\fl\pipeline\Aggregator$AggregationResult.class
 com\fl\app\fl\pipeline\SecurityLayer.class
 com\fl\app\persistence\UserRepository.class
 com\fl\app\domain\User.class
+com\fl\app\fl\pipeline\Evaluator$Prediction.class
 com\fl\app\domain\RoundMetric.class
 com\fl\app\fl\pipeline\LocalTrainer.class
 com\fl\app\fl\pipeline\Evaluator.class
@@ -47,6 +48,7 @@ com\fl\app\service\ServiceLayerMarker.class
 com\fl\app\persistence\ClientMetricRepository.class
 com\fl\app\security\AuthController.class
 com\fl\app\security\AuthController$RegisterResponse.class
+com\fl\app\fl\BaselineSimulator.class
 com\fl\app\fl\FlTrainingCoordinator$ClientRoundResult.class
 com\fl\app\fl\pipeline\Aggregator.class
 com\fl\app\fl\pipeline\Evaluator$EvaluationResult.class
@@ -60,6 +62,7 @@ com\fl\app\domain\TrainingSession$TrainingSessionBuilder.class
 com\fl\app\fl\pipeline\DataCleaner.class
 com\fl\app\api\ws\WebSocketConfig.class
 com\fl\app\api\rest\SessionController$CreateSessionRequest.class
+com\fl\app\fl\BaselineSimulator$HospitalData.class
 com\fl\app\api\ws\RoundUpdateMessage$RoundUpdateMessageBuilder.class
 com\fl\app\domain\UploadedDataset$UploadedDatasetBuilder.class
 com\fl\app\service\SessionService.class

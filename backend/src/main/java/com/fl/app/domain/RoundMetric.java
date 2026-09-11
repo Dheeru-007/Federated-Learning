@@ -54,6 +54,36 @@ public class RoundMetric {
     @Column(nullable = false)
     private double globalLoss;
 
+    @Column
+    private double precision;
+
+    @Column
+    private double recall;
+
+    @Column
+    private double specificity;
+
+    @Column
+    private double f1Score;
+
+    @Column
+    private double rocAuc;
+
+    @Column
+    private double prAuc;
+
+    @Column
+    private int tp;
+
+    @Column
+    private int tn;
+
+    @Column
+    private int fp;
+
+    @Column
+    private int fn;
+
     @Column(nullable = false)
     private int numClients;
 

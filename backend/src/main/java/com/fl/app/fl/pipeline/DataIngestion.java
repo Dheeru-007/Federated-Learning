@@ -1,9 +1,12 @@
 package com.fl.app.fl.pipeline;
 
-import java.io.BufferedReader;
 import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.List;
+
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVParser;
+import org.apache.commons.csv.CSVRecord;
 
 public class DataIngestion {
 
@@ -11,54 +14,66 @@ public class DataIngestion {
         double[][] features,
         int[] labels,
         int featureCount,
-        int rowCount
+        int rowCount,
+        String extractedHeaders // Comma-separated list of all headers (features + label)
     ) {}
 
     public static ParsedDataset parse(String csvContent) {
         List<double[]> featureList = new ArrayList<>();
         List<Integer> labelList = new ArrayList<>();
+        
+        CSVFormat format = CSVFormat.DEFAULT.builder()
+            .setHeader()
+            .setSkipHeaderRecord(true)
+            .setTrim(true)
+            .setIgnoreEmptyLines(true)
+            .build();
+
+        List<String> headerNames;
         int featureCount = -1;
 
-        try (BufferedReader reader = new BufferedReader(new StringReader(csvContent))) {
-            String line;
-            boolean firstLine = true;
+        try (CSVParser parser = CSVParser.parse(new StringReader(csvContent), format)) {
+            headerNames = parser.getHeaderNames();
+            
+            if (headerNames == null || headerNames.isEmpty()) {
+                throw new IllegalArgumentException("CSV file must contain a header row.");
+            }
+            
+            featureCount = headerNames.size() - 1;
+            if (featureCount <= 0) {
+                throw new IllegalArgumentException("CSV file must contain at least one feature and one label column.");
+            }
 
-            while ((line = reader.readLine()) != null) {
-                line = line.trim();
-                if (line.isEmpty()) continue;
-
-                // Skip header row
-                if (firstLine) {
-                    firstLine = false;
-                    continue;
+            for (CSVRecord record : parser) {
+                if (record.size() != headerNames.size()) {
+                    throw new IllegalArgumentException("Row " + record.getRecordNumber() + " has " + record.size() + " columns, expected " + headerNames.size());
                 }
 
-                String[] parts = line.split(",");
-
-                // Last column is label
-                int numFeatures = parts.length - 1;
-
-                if (featureCount == -1) {
-                    featureCount = numFeatures;
-                } else if (numFeatures != featureCount) {
-                    throw new IllegalArgumentException(
-                        "Row has " + numFeatures + " features, expected " + featureCount
-                    );
+                double[] row = new double[featureCount];
+                for (int i = 0; i < featureCount; i++) {
+                    try {
+                        row[i] = Double.parseDouble(record.get(i).trim());
+                    } catch (NumberFormatException e) {
+                        throw new IllegalArgumentException("Invalid numeric value '" + record.get(i) + "' in column '" + headerNames.get(i) + "' at row " + record.getRecordNumber());
+                    }
                 }
 
-                double[] row = new double[numFeatures];
-                for (int i = 0; i < numFeatures; i++) {
-                    row[i] = Double.parseDouble(parts[i].trim());
+                int label;
+                try {
+                    label = (int) Double.parseDouble(record.get(featureCount).trim());
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException("Invalid label value '" + record.get(featureCount) + "' at row " + record.getRecordNumber());
                 }
 
-                int label = (int) Double.parseDouble(parts[parts.length - 1].trim());
                 if (label != 0 && label != 1) {
-                    throw new IllegalArgumentException("Label must be 0 or 1, got: " + label);
+                    throw new IllegalArgumentException("Label must be 0 or 1, got: " + label + " at row " + record.getRecordNumber());
                 }
 
                 featureList.add(row);
                 labelList.add(label);
             }
+        } catch (IllegalArgumentException e) {
+            throw e;
         } catch (Exception e) {
             throw new RuntimeException("CSV parsing failed: " + e.getMessage(), e);
         }
@@ -69,7 +84,8 @@ public class DataIngestion {
 
         double[][] features = featureList.toArray(new double[0][]);
         int[] labels = labelList.stream().mapToInt(i -> i).toArray();
+        String extractedHeaders = String.join(",", headerNames);
 
-        return new ParsedDataset(features, labels, featureCount, features.length);
+        return new ParsedDataset(features, labels, featureCount, features.length, extractedHeaders);
     }
 }

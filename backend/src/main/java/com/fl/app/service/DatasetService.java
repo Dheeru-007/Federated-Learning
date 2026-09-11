@@ -56,9 +56,16 @@ public class DatasetService {
 
         validateFeatureConsistency(session, parsed.featureCount(), sessionId);
 
-        // Lock feature count from first successful upload
-        if (session.getFeatureCount() == null) {
+        // Lock expected headers and feature count from first successful upload
+        if (session.getExpectedHeaders() == null) {
+            session.setExpectedHeaders(parsed.extractedHeaders());
             session.setFeatureCount(parsed.featureCount());
+        } else if (!session.getExpectedHeaders().equals(parsed.extractedHeaders())) {
+            throw new IllegalArgumentException(
+                "Schema mismatch! The session was initialized with columns: [" 
+                + session.getExpectedHeaders() + "]. This hospital uploaded: [" 
+                + parsed.extractedHeaders() + "]. Please ensure all hospitals use the exact same column names and ordering."
+            );
         }
 
         // Replace any existing upload for this hospital

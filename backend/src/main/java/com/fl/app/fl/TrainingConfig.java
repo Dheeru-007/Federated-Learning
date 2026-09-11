@@ -17,7 +17,7 @@ public class TrainingConfig {
     private int numHospitals = 2;
 
     @Builder.Default
-    private int numRounds = 5;
+    private int numRounds = 20;
 
     @Builder.Default
     private double privacyBudget = 1.0;
@@ -29,7 +29,7 @@ public class TrainingConfig {
     private double noiseSigma = 0.05;
 
     @Builder.Default
-    private int localEpochs = 1;
+    private int localEpochs = 5;
 
     @Builder.Default
     private DataSource dataSource = DataSource.SIMULATED;

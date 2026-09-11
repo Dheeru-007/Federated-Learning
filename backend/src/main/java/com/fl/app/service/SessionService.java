@@ -67,6 +67,9 @@ public class SessionService {
                     .numHospitals(config.getNumHospitals())
                     .numRounds(config.getNumRounds())
                     .privacyBudget(config.getPrivacyBudget())
+                    .clipNorm(config.getClipNorm())
+                    .noiseSigma(config.getNoiseSigma())
+                    .localEpochs(config.getLocalEpochs())
                     .dataSource(DataSource.CSV)
                     .maliciousClientEnabled(config.isMaliciousClientEnabled())
                     .build();
@@ -114,6 +117,9 @@ public class SessionService {
                 .numHospitals(session.getNumHospitals())
                 .numRounds(session.getNumRounds())
                 .privacyBudget(session.getPrivacyBudget())
+                .clipNorm(session.getClipNorm())
+                .noiseSigma(session.getNoiseSigma())
+                .localEpochs(session.getLocalEpochs())
                 .dataSource(session.getDataSource())
                 .maliciousClientEnabled(session.isMaliciousClientEnabled())
                 .build();

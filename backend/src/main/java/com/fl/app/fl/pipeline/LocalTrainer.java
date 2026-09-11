@@ -30,7 +30,7 @@ public class LocalTrainer {
 
     public LocalTrainer(int featureCount) {
         this.featureCount = featureCount;
-        this.learningRate = 0.05;
+        this.learningRate = 0.01;
         this.batchSize = 32;
         
         this.W1 = new double[featureCount][hiddenSize];
@@ -65,11 +65,20 @@ public class LocalTrainer {
     public ModelWeights train(double[][] features, int[] labels,
                                int epochs, String clientId, int round) {
         int n = features.length;
+        
+        int n0 = 0, n1 = 0;
+        for (int l : labels) {
+            if (l == 1) n1++;
+            else n0++;
+        }
+        double weight0 = (n0 == 0) ? 1.0 : (double) n / (2.0 * n0);
+        double weight1 = (n1 == 0) ? 1.0 : (double) n / (2.0 * n1);
+
         for (int epoch = 0; epoch < epochs; epoch++) {
             int[] indices = shuffledIndices(n);
             for (int start = 0; start < n; start += batchSize) {
                 int end = Math.min(start + batchSize, n);
-                updateBatch(features, labels, indices, start, end);
+                updateBatch(features, labels, indices, start, end, weight0, weight1);
             }
         }
         
@@ -80,7 +89,7 @@ public class LocalTrainer {
     }
 
     private void updateBatch(double[][] features, int[] labels,
-                              int[] indices, int start, int end) {
+                              int[] indices, int start, int end, double weight0, double weight1) {
         double[][] gradW1 = new double[featureCount][hiddenSize];
         double[] gradB1 = new double[hiddenSize];
         double[] gradW2 = new double[hiddenSize];
@@ -106,7 +115,8 @@ public class LocalTrainer {
             double a2 = sigmoid(z2);
             
             // Backward
-            double error = a2 - labels[idx]; // Derivative of Binary Cross Entropy + Sigmoid
+            double weight = labels[idx] == 0 ? weight0 : weight1;
+            double error = weight * (a2 - labels[idx]); // Derivative of Weighted BCE + Sigmoid
             gradB2 += error;
             for (int j = 0; j < hiddenSize; j++) {
                 gradW2[j] += error * a1[j];
@@ -160,17 +170,29 @@ public class LocalTrainer {
     }
 
     public double computeLoss(double[][] features, int[] labels) {
+        int n = features.length;
+        if (n == 0) return 0.0;
+        
+        int n0 = 0, n1 = 0;
+        for (int l : labels) {
+            if (l == 1) n1++;
+            else n0++;
+        }
+        double weight0 = (n0 == 0) ? 1.0 : (double) n / (2.0 * n0);
+        double weight1 = (n1 == 0) ? 1.0 : (double) n / (2.0 * n1);
+
         double loss = 0.0;
         double eps = 1e-10;
-        for (int i = 0; i < features.length; i++) {
+        for (int i = 0; i < n; i++) {
             double p = forwardPass(features[i]);
             p = Math.max(eps, Math.min(1 - eps, p));
-            loss -= labels[i] * Math.log(p) + (1 - labels[i]) * Math.log(1 - p);
+            double weight = labels[i] == 0 ? weight0 : weight1;
+            loss -= weight * (labels[i] * Math.log(p) + (1 - labels[i]) * Math.log(1 - p));
         }
-        return loss / features.length;
+        return loss / n;
     }
     
-    private double forwardPass(double[] x) {
+    public double forwardPass(double[] x) {
         double[] a1 = new double[hiddenSize];
         for (int j = 0; j < hiddenSize; j++) {
             double sum = b1[j];
